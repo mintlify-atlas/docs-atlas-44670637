@@ -1,0 +1,406 @@
+---
+title: "Code Generation"
+description: "Use cases for generating code using Roslyn in Chapi Assistant"
+---
+
+## Overview
+
+The Code Generation use cases leverage Roslyn to automatically generate and modify C# code following Clean Architecture patterns.
+
+## AddApiControllerUseCase
+
+Adds a new controller method to the API layer.
+
+### Method Signature
+
+```csharp
+public Result<RollbackManager.RollbackEntry> Execute(
+    string projectPath,
+    string moduleName,
+    string operation,
+    string methodName,
+    RollbackManager.RollbackEntry? rollbackEntry = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The root path of the project
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module (e.g., "Users", "Products")
+</ParamField>
+
+<ParamField path="operation" type="string" required>
+  HTTP operation type (e.g., "GET", "POST", "PUT", "DELETE")
+</ParamField>
+
+<ParamField path="methodName" type="string" required>
+  Name of the method to generate
+</ParamField>
+
+<ParamField path="rollbackEntry" type="RollbackManager.RollbackEntry">
+  Optional rollback entry for tracking changes
+</ParamField>
+
+<ResponseField name="Result<RollbackManager.RollbackEntry>" type="Result<RollbackManager.RollbackEntry>">
+  Result containing a rollback entry for undo operations
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the controller method was added successfully
+    </ResponseField>
+    <ResponseField name="Data" type="RollbackManager.RollbackEntry">
+      Rollback information for reverting the changes
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new AddApiControllerUseCase();
+var result = useCase.Execute(
+    projectPath: "C:\\Projects\\MyApp",
+    moduleName: "Users",
+    operation: "POST",
+    methodName: "CreateUser"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("API Controller method added");
+}
+```
+
+---
+
+## AddApiEndpointUseCase
+
+Adds a minimal API endpoint to the API layer.
+
+### Method Signature
+
+```csharp
+public Result<RollbackManager.RollbackEntry> Execute(
+    string projectPath,
+    string moduleName,
+    string operation,
+    string methodName,
+    RollbackManager.RollbackEntry? rollbackEntry = null,
+    bool includeAppLayer = false
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The root path of the project
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module
+</ParamField>
+
+<ParamField path="operation" type="string" required>
+  HTTP operation type
+</ParamField>
+
+<ParamField path="methodName" type="string" required>
+  Name of the endpoint method
+</ParamField>
+
+<ParamField path="rollbackEntry" type="RollbackManager.RollbackEntry">
+  Optional rollback entry
+</ParamField>
+
+<ParamField path="includeAppLayer" type="bool" default="false">
+  Whether to also generate the Application layer method
+</ParamField>
+
+<ResponseField name="Result<RollbackManager.RollbackEntry>" type="Result<RollbackManager.RollbackEntry>">
+  Result containing a rollback entry
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new AddApiEndpointUseCase();
+var result = useCase.Execute(
+    projectPath: "C:\\Projects\\MyApp",
+    moduleName: "Products",
+    operation: "GET",
+    methodName: "GetProduct",
+    includeAppLayer: true
+);
+```
+
+---
+
+## AddApplicationMethodUseCase
+
+Adds a use case method to the Application layer.
+
+### Method Signature
+
+```csharp
+public Result<RollbackManager.RollbackEntry> Execute(
+    string projectPath,
+    string moduleName,
+    string operation,
+    string methodName,
+    RollbackManager.RollbackEntry? rollbackEntry = null,
+    bool useGenericRepository = false
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The root path of the project
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module
+</ParamField>
+
+<ParamField path="operation" type="string" required>
+  Operation type (e.g., "Create", "Update", "Delete", "Get")
+</ParamField>
+
+<ParamField path="methodName" type="string" required>
+  Name of the use case method
+</ParamField>
+
+<ParamField path="rollbackEntry" type="RollbackManager.RollbackEntry">
+  Optional rollback entry
+</ParamField>
+
+<ParamField path="useGenericRepository" type="bool" default="false">
+  Whether to use a generic repository pattern
+</ParamField>
+
+<ResponseField name="Result<RollbackManager.RollbackEntry>" type="Result<RollbackManager.RollbackEntry>">
+  Result containing a rollback entry
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new AddApplicationMethodUseCase();
+var result = useCase.Execute(
+    projectPath: "C:\\Projects\\MyApp",
+    moduleName: "Orders",
+    operation: "Create",
+    methodName: "CreateOrder",
+    useGenericRepository: true
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Application layer method added");
+}
+```
+
+---
+
+## AddDomainMethodUseCase
+
+Adds a method to the Domain layer entity or service.
+
+### Method Signature
+
+```csharp
+public async Task<Result<RollbackManager.RollbackEntry>> ExecuteAsync(
+    string projectPath,
+    string moduleName,
+    string operation,
+    string methodName,
+    RollbackManager.RollbackEntry? rollbackEntry = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The root path of the project
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module
+</ParamField>
+
+<ParamField path="operation" type="string" required>
+  Operation type
+</ParamField>
+
+<ParamField path="methodName" type="string" required>
+  Name of the domain method
+</ParamField>
+
+<ParamField path="rollbackEntry" type="RollbackManager.RollbackEntry">
+  Optional rollback entry
+</ParamField>
+
+<ResponseField name="Result<RollbackManager.RollbackEntry>" type="Result<RollbackManager.RollbackEntry>">
+  Result containing a rollback entry
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new AddDomainMethodUseCase();
+var result = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    moduleName: "Customers",
+    operation: "Validate",
+    methodName: "ValidateEmail"
+);
+```
+
+---
+
+## AddInfrastructureMethodUseCase
+
+Adds a method to the Infrastructure layer (repositories, services).
+
+### Method Signature
+
+```csharp
+public Result<RollbackManager.RollbackEntry> Execute(
+    string projectPath,
+    string moduleName,
+    string operation,
+    string methodName,
+    RollbackManager.RollbackEntry? rollbackEntry = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The root path of the project
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module
+</ParamField>
+
+<ParamField path="operation" type="string" required>
+  Operation type
+</ParamField>
+
+<ParamField path="methodName" type="string" required>
+  Name of the infrastructure method
+</ParamField>
+
+<ParamField path="rollbackEntry" type="RollbackManager.RollbackEntry">
+  Optional rollback entry
+</ParamField>
+
+<ResponseField name="Result<RollbackManager.RollbackEntry>" type="Result<RollbackManager.RollbackEntry>">
+  Result containing a rollback entry
+</ResponseField>
+
+---
+
+## AddDependencyInjectionUseCase
+
+Registers services in the dependency injection container.
+
+### Method Signature
+
+```csharp
+public Result Execute(
+    string projectPath,
+    string moduleName,
+    IEnumerable<string> operations
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The root path of the project
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module
+</ParamField>
+
+<ParamField path="operations" type="IEnumerable<string>" required>
+  List of operations to register (e.g., ["Create", "Update", "Delete"])
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new AddDependencyInjectionUseCase();
+var operations = new[] { "Create", "Update", "Delete", "Get" };
+
+var result = useCase.Execute(
+    projectPath: "C:\\Projects\\MyApp",
+    moduleName: "Invoices",
+    operations: operations
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Dependency injection configured");
+}
+```
+
+---
+
+## GenerateModuleUseCase
+
+Generates a complete module structure following Clean Architecture.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectDirectory, 
+    string moduleNames, 
+    string dbChoice
+)
+```
+
+<ParamField path="projectDirectory" type="string" required>
+  The root directory of the project
+</ParamField>
+
+<ParamField path="moduleNames" type="string" required>
+  Semicolon-separated list of module names (e.g., "Users;Products;Orders")
+</ParamField>
+
+<ParamField path="dbChoice" type="string" required>
+  Database choice: "S" for Sybase, "P" for Postgres
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new GenerateModuleUseCase(moduleGeneratorService);
+var result = await useCase.ExecuteAsync(
+    projectDirectory: "C:\\Projects\\MyApp",
+    moduleNames: "Users;Products;Orders",
+    dbChoice: "P"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Modules generated successfully");
+}
+```
+
+### Process Flow
+
+1. Parses the semicolon-separated module names
+2. For each module:
+   - Creates Domain entities
+   - Creates Application use cases
+   - Creates Infrastructure repositories
+   - Creates API endpoints
+   - Configures dependency injection
+3. Uses the specified database provider (Sybase or Postgres)

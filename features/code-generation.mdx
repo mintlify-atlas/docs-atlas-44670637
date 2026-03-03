@@ -1,0 +1,390 @@
+---
+title: 'Code Generation'
+description: 'Generate modules, API endpoints, and boilerplate code following Clean Architecture patterns'
+icon: 'wand-magic-sparkles'
+---
+
+## Overview
+
+Chapi Assistant provides powerful code generation capabilities for .NET WPF projects, automatically creating modules with Domain, Application, Infrastructure, and API layers following Clean Architecture principles.
+
+<Info>
+Code generation is powered by Roslyn-based code analysis and manipulation for type-safe, production-ready code.
+</Info>
+
+## Module Generation
+
+### Generate Complete Modules
+
+Create full-stack modules with all architectural layers in one command:
+
+```csharp
+var result = await generateModuleUseCase.ExecuteAsync(
+    projectDirectory: @"C:\Projects\MyApp",
+    moduleNames: "Customer;Product;Order",
+    dbChoice: "P" // P = Postgres, S = Sybase
+);
+```
+
+<Tabs>
+  <Tab title="Single Module">
+    Generate a single module:
+
+    ```csharp
+    await generateModuleUseCase.ExecuteAsync(
+        @"C:\Projects\MyApp",
+        "Customer",
+        "P"
+    );
+    ```
+
+    Creates:
+    - Domain entities and value objects
+    - Application use cases
+    - Infrastructure repositories
+    - API controllers and endpoints
+  </Tab>
+
+  <Tab title="Multiple Modules">
+    Generate multiple modules at once using semicolon separator:
+
+    ```csharp
+    await generateModuleUseCase.ExecuteAsync(
+        @"C:\Projects\MyApp",
+        "Customer;Product;Order;Invoice",
+        "P"
+    );
+    ```
+
+    All modules are created with the same database configuration.
+  </Tab>
+
+  <Tab title="Database Selection">
+    Choose your database provider:
+
+    ```csharp
+    // PostgreSQL
+    await generateModuleUseCase.ExecuteAsync(path, "Customer", "P");
+
+    // Sybase
+    await generateModuleUseCase.ExecuteAsync(path, "Customer", "S");
+    ```
+
+    The database choice affects repository implementations and connection configurations.
+  </Tab>
+</Tabs>
+
+## API Endpoint Generation
+
+### Add Individual Endpoints
+
+Generate specific API endpoints for existing modules:
+
+```csharp
+var result = addApiEndpointUseCase.Execute(
+    projectPath: @"C:\Projects\MyApp",
+    moduleName: "Customer",
+    operation: "Create",
+    methodName: "CreateCustomer",
+    includeAppLayer: true
+);
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project root directory.
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  Name of the module (e.g., "Customer", "Product").
+</ParamField>
+
+<ParamField path="operation" type="string" required>
+  HTTP operation type: "Create", "Read", "Update", "Delete", "List".
+</ParamField>
+
+<ParamField path="methodName" type="string" required>
+  Name of the API method to generate.
+</ParamField>
+
+<ParamField path="includeAppLayer" type="boolean">
+  Whether to generate the corresponding Application layer use case (default: false).
+</ParamField>
+
+### Supported Operations
+
+<CardGroup cols={2}>
+  <Card title="Create" icon="plus">
+    POST endpoint for creating new entities
+    ```csharp
+    [HttpPost]
+    public async Task<IActionResult> CreateCustomer(...)
+    ```
+  </Card>
+  
+  <Card title="Read" icon="eye">
+    GET endpoint for retrieving a single entity
+    ```csharp
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetCustomer(int id)
+    ```
+  </Card>
+  
+  <Card title="Update" icon="pen-to-square">
+    PUT endpoint for updating existing entities
+    ```csharp
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateCustomer(...)
+    ```
+  </Card>
+  
+  <Card title="Delete" icon="trash">
+    DELETE endpoint for removing entities
+    ```csharp
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteCustomer(int id)
+    ```
+  </Card>
+  
+  <Card title="List" icon="list">
+    GET endpoint for retrieving multiple entities
+    ```csharp
+    [HttpGet]
+    public async Task<IActionResult> ListCustomers(...)
+    ```
+  </Card>
+</CardGroup>
+
+## Layer-Specific Generation
+
+Generate code for specific architectural layers:
+
+<Tabs>
+  <Tab title="Application Layer">
+    Add application layer methods (use cases):
+
+    ```csharp
+    var result = addApplicationMethodUseCase.Execute(
+        projectPath: @"C:\Projects\MyApp",
+        moduleName: "Customer",
+        operation: "Create",
+        methodName: "CreateCustomer"
+    );
+    ```
+
+    Generates:
+    - Use case class
+    - Request/Response DTOs
+    - Validation logic
+  </Tab>
+
+  <Tab title="Domain Layer">
+    Add domain layer methods:
+
+    ```csharp
+    var result = addDomainMethodUseCase.Execute(
+        projectPath: @"C:\Projects\MyApp",
+        moduleName: "Customer",
+        methodName: "ActivateCustomer"
+    );
+    ```
+
+    Generates:
+    - Domain methods
+    - Business logic
+    - Domain events (if applicable)
+  </Tab>
+
+  <Tab title="Infrastructure Layer">
+    Add infrastructure layer methods:
+
+    ```csharp
+    var result = addInfrastructureMethodUseCase.Execute(
+        projectPath: @"C:\Projects\MyApp",
+        moduleName: "Customer",
+        methodName: "GetCustomersByRegion"
+    );
+    ```
+
+    Generates:
+    - Repository implementations
+    - Data access logic
+    - Database queries
+  </Tab>
+</Tabs>
+
+## Dependency Injection Setup
+
+Automatically configure dependency injection for generated modules:
+
+```csharp
+var result = addDependencyInjectionUseCase.Execute(
+    projectPath: @"C:\Projects\MyApp",
+    moduleName: "Customer",
+    operations: new[] { "Create", "Read", "Update", "Delete" }
+);
+```
+
+<Check>
+This adds service registrations to your DI container for all specified operations.
+</Check>
+
+### What Gets Registered
+
+```csharp
+// Application layer
+services.AddScoped<ICreateCustomerUseCase, CreateCustomerUseCase>();
+services.AddScoped<IReadCustomerUseCase, ReadCustomerUseCase>();
+
+// Infrastructure layer
+services.AddScoped<ICustomerRepository, CustomerRepository>();
+```
+
+## Rollback Support
+
+Code generation includes automatic rollback capabilities:
+
+```csharp
+var rollbackEntry = new RollbackManager.RollbackEntry();
+
+var result = addApiEndpointUseCase.Execute(
+    projectPath,
+    moduleName,
+    operation,
+    methodName,
+    rollbackEntry: rollbackEntry
+);
+
+if (result.IsSuccess)
+{
+    // Rollback entry contains information to undo changes
+    var entry = result.Value;
+}
+```
+
+<Warning>
+Rollback entries track all file modifications and additions, allowing you to undo code generation if needed.
+</Warning>
+
+## Generated Code Structure
+
+When you generate a module named "Customer", Chapi creates:
+
+```
+MyApp/
+├── Domain/
+│   └── Entities/
+│       └── Customer.cs
+├── Application/
+│   └── UseCases/
+│       └── Customers/
+│           ├── CreateCustomerUseCase.cs
+│           ├── GetCustomerUseCase.cs
+│           └── UpdateCustomerUseCase.cs
+├── Infrastructure/
+│   └── Repositories/
+│       └── CustomerRepository.cs
+└── API/
+    └── Controllers/
+        └── CustomersController.cs
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Module Naming">
+    - Use singular names ("Customer" not "Customers")
+    - Use PascalCase
+    - Keep names concise and descriptive
+    - Avoid abbreviations unless widely understood
+  </Accordion>
+
+  <Accordion title="Operation Selection">
+    - Start with basic CRUD operations
+    - Add custom operations as needed
+    - Group related operations in the same module
+    - Use descriptive method names for custom operations
+  </Accordion>
+
+  <Accordion title="Code Review">
+    - Review generated code before committing
+    - Customize validation logic as needed
+    - Add business rules to domain layer
+    - Adjust DTOs to match your requirements
+  </Accordion>
+
+  <Accordion title="Database Configuration">
+    - Choose the correct database provider upfront
+    - Changing database provider later requires manual updates
+    - Ensure connection strings are configured
+    - Test repository methods after generation
+  </Accordion>
+</AccordionGroup>
+
+## Error Handling
+
+<CodeGroup>
+```csharp Common Errors
+if (!result.IsSuccess)
+{
+    // "No hay proyecto seleccionado"
+    // "Debe ingresar al menos un nombre de módulo"
+    // "La ruta del proyecto no puede estar vacía"
+    // "El nombre del módulo no puede estar vacío"
+    // "No se pudo agregar el endpoint API"
+    
+    Console.WriteLine($"Error: {result.Error}");
+}
+```
+
+```csharp Validation
+try
+{
+    var result = await generateModuleUseCase.ExecuteAsync(
+        projectDirectory,
+        moduleNames,
+        dbChoice
+    );
+    
+    if (result.IsSuccess)
+    {
+        Console.WriteLine("Modules generated successfully!");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Fatal error: {ex.Message}");
+}
+```
+</CodeGroup>
+
+## Advanced Features
+
+<CardGroup cols={2}>
+  <Card title="Custom Templates" icon="file-code">
+    Chapi uses Roslyn-based code generation, allowing customization of templates and patterns.
+  </Card>
+  
+  <Card title="Batch Generation" icon="layer-group">
+    Generate multiple modules simultaneously with semicolon-separated names.
+  </Card>
+  
+  <Card title="Incremental Updates" icon="arrows-rotate">
+    Add endpoints to existing modules without regenerating everything.
+  </Card>
+  
+  <Card title="Type Safety" icon="shield-check">
+    All generated code is type-safe and follows C# best practices.
+  </Card>
+</CardGroup>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Project Creation" icon="folder-plus" href="/features/project-creation">
+    Create projects with templates ready for code generation
+  </Card>
+  
+  <Card title="AI Assistant" icon="sparkles" href="/features/ai-assistant">
+    Use AI to suggest module structures and operations
+  </Card>
+</CardGroup>

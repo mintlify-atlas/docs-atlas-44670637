@@ -1,0 +1,564 @@
+---
+title: "Git Repository"
+description: "API reference for the Git Repository interface providing comprehensive Git operations"
+---
+
+## Overview
+
+The Git Repository provides a complete abstraction over Git operations using LibGit2Sharp. It supports commits, branches, remotes, stashing, tagging, and authentication.
+
+**Interface**: `IGitRepository`  
+**Implementation**: `LibGit2SharpRepository`  
+**Namespace**: `Chapi.Domain.Interfaces` / `Chapi.Infrastructure.Git`
+
+## Commits
+
+### CommitAsync
+
+Creates a new commit with specified files and message.
+
+```csharp
+Task<Result<GitCommit>> CommitAsync(
+    string projectPath,
+    string message,
+    IEnumerable<string> files
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the Git repository
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Commit message
+</ParamField>
+
+<ParamField path="files" type="IEnumerable<string>" required>
+  Files to stage and commit
+</ParamField>
+
+<ResponseField name="GitCommit" type="Result<GitCommit>">
+  Returns commit details including Hash, Message, Author, Date, and RelativeDate
+</ResponseField>
+
+### GetCommitsAsync
+
+Retrieves commit history with specified limit.
+
+```csharp
+Task<IEnumerable<GitCommit>> GetCommitsAsync(
+    string projectPath,
+    int limit
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the Git repository
+</ParamField>
+
+<ParamField path="limit" type="int" required>
+  Maximum number of commits to retrieve
+</ParamField>
+
+<ResponseField name="commits" type="IEnumerable<GitCommit>">
+  Collection of commits with Hash, Message, Description, Author, Date, RelativeDate, and Tags
+</ResponseField>
+
+### GetUnpushedCommitsAsync
+
+Gets commits that exist locally but haven't been pushed to remote.
+
+```csharp
+Task<HashSet<string>> GetUnpushedCommitsAsync(
+    string projectPath,
+    string branch
+)
+```
+
+<ResponseField name="commits" type="HashSet<string>">
+  Set of commit hashes that are ahead of the remote branch
+</ResponseField>
+
+## Changes
+
+### GetChangesAsync
+
+Retrieves all file changes in the working directory.
+
+```csharp
+Task<IEnumerable<FileChange>> GetChangesAsync(string projectPath)
+```
+
+<ResponseField name="changes" type="IEnumerable<FileChange>">
+  Collection of FileChange objects with FilePath, Status (Added/Modified/Deleted/Renamed), Additions, and Deletions
+</ResponseField>
+
+### StageFilesAsync
+
+Stages specified files for commit.
+
+```csharp
+Task<Result> StageFilesAsync(
+    string projectPath,
+    IEnumerable<string> files
+)
+```
+
+### UnstageFilesAsync
+
+Unstages previously staged files.
+
+```csharp
+Task<Result> UnstageFilesAsync(
+    string projectPath,
+    IEnumerable<string> files
+)
+```
+
+### DiscardChangesAsync
+
+Discards uncommitted changes.
+
+```csharp
+Task<Result> DiscardChangesAsync(
+    string projectPath,
+    IEnumerable<string>? files = null
+)
+```
+
+<ParamField path="files" type="IEnumerable<string>?" default="null">
+  Specific files to discard. If null, discards all changes
+</ParamField>
+
+## Branches
+
+### GetBranchesAsync
+
+Retrieves all local and remote branches.
+
+```csharp
+Task<IEnumerable<string>> GetBranchesAsync(string projectPath)
+```
+
+<ResponseField name="branches" type="IEnumerable<string>">
+  List of branch names (local branches and remote branches not tracked locally)
+</ResponseField>
+
+### GetCurrentBranchAsync
+
+Gets the name of the current branch.
+
+```csharp
+Task<string> GetCurrentBranchAsync(string projectPath)
+```
+
+<ResponseField name="branch" type="string">
+  Current branch name, or short SHA if in detached HEAD state
+</ResponseField>
+
+### SwitchBranchAsync
+
+Switches to a different branch.
+
+```csharp
+Task<Result> SwitchBranchAsync(
+    string projectPath,
+    string branchName
+)
+```
+
+<ParamField path="branchName" type="string" required>
+  Name of branch to switch to (local or remote)
+</ParamField>
+
+### CreateBranchAsync
+
+Creates a new branch.
+
+```csharp
+Task<Result> CreateBranchAsync(
+    string projectPath,
+    string branchName,
+    string? fromCommitOrBranch = null
+)
+```
+
+<ParamField path="fromCommitOrBranch" type="string?" default="null">
+  Starting point for the new branch (defaults to current HEAD)
+</ParamField>
+
+### DeleteBranchAsync
+
+Deletes a branch locally and optionally remotely.
+
+```csharp
+Task<Result> DeleteBranchAsync(
+    string projectPath,
+    string branchName,
+    bool force = false,
+    bool deleteRemote = false
+)
+```
+
+<ParamField path="force" type="bool" default="false">
+  Force deletion even if branch has unmerged changes
+</ParamField>
+
+<ParamField path="deleteRemote" type="bool" default="false">
+  Also delete the branch from remote repository
+</ParamField>
+
+### MergeBranchAsync
+
+Merges a source branch into the current branch.
+
+```csharp
+Task<Result> MergeBranchAsync(
+    string projectPath,
+    string sourceBranch,
+    bool fastForward = true
+)
+```
+
+### SquashMergeBranchAsync
+
+Performs a squash merge.
+
+```csharp
+Task<Result> SquashMergeBranchAsync(
+    string projectPath,
+    string sourceBranch,
+    string? commitMessage = null
+)
+```
+
+### RebaseBranchAsync
+
+Rebases current branch onto target branch.
+
+```csharp
+Task<Result> RebaseBranchAsync(
+    string projectPath,
+    string targetBranch
+)
+```
+
+### CheckMergeConflictsAsync
+
+Checks if merging would cause conflicts.
+
+```csharp
+Task<(bool hasConflicts, string message)> CheckMergeConflictsAsync(
+    string projectPath,
+    string sourceBranch
+)
+```
+
+### ResetAsync
+
+Resets current branch to a specific commit.
+
+```csharp
+Task<Result> ResetAsync(
+    string projectPath,
+    string target,
+    ResetMode mode
+)
+```
+
+<ParamField path="mode" type="ResetMode" required>
+  Reset mode: Soft (keeps changes staged), Mixed (keeps changes unstaged), or Hard (discards all changes)
+</ParamField>
+
+## Remote Operations
+
+### PushAsync
+
+Pushes commits to remote repository.
+
+```csharp
+Task<Result> PushAsync(
+    string projectPath,
+    string branch,
+    bool force = false
+)
+```
+
+<ParamField path="force" type="bool" default="false">
+  Force push (overwrites remote history)
+</ParamField>
+
+### PullAsync
+
+Pulls changes from remote repository.
+
+```csharp
+Task<Result> PullAsync(
+    string projectPath,
+    string branch
+)
+```
+
+### FetchAsync
+
+Fetches changes from remote without merging.
+
+```csharp
+Task<Result> FetchAsync(string projectPath)
+```
+
+### GetAheadBehindCountAsync
+
+Gets how many commits ahead/behind the remote branch.
+
+```csharp
+Task<(int Ahead, int Behind)> GetAheadBehindCountAsync(string projectPath)
+```
+
+### GetRemoteUrlAsync
+
+Gets the URL of a remote.
+
+```csharp
+Task<string> GetRemoteUrlAsync(
+    string projectPath,
+    string remoteName = "origin"
+)
+```
+
+### SetRemoteUrlAsync
+
+Updates the URL of a remote.
+
+```csharp
+Task<Result> SetRemoteUrlAsync(
+    string projectPath,
+    string remoteName,
+    string url
+)
+```
+
+## Lifecycle
+
+### CloneAsync
+
+Clones a remote repository.
+
+```csharp
+Task<Result> CloneAsync(
+    string url,
+    string destinationPath
+)
+```
+
+### InitAsync
+
+Initializes a new Git repository.
+
+```csharp
+Task<Result> InitAsync(string projectPath)
+```
+
+### AddRemoteAsync
+
+Adds a new remote.
+
+```csharp
+Task<Result> AddRemoteAsync(
+    string projectPath,
+    string name,
+    string url
+)
+```
+
+## Stash
+
+### StashChangesAsync
+
+Stashes current changes.
+
+```csharp
+Task<Result> StashChangesAsync(
+    string projectPath,
+    string message,
+    IEnumerable<string>? files = null
+)
+```
+
+### ListStashesAsync
+
+Lists all stashes.
+
+```csharp
+Task<IEnumerable<GitStash>> ListStashesAsync(string projectPath)
+```
+
+### StashPopAsync
+
+Applies and removes a stash.
+
+```csharp
+Task<Result> StashPopAsync(
+    string projectPath,
+    int? index = null
+)
+```
+
+### StashDropAsync
+
+Removes a stash without applying.
+
+```csharp
+Task<Result> StashDropAsync(
+    string projectPath,
+    int index
+)
+```
+
+### StashClearAsync
+
+Removes all stashes.
+
+```csharp
+Task<Result> StashClearAsync(string projectPath)
+```
+
+## Tags
+
+### CreateTagAsync
+
+Creates a new annotated tag.
+
+```csharp
+Task<Result> CreateTagAsync(
+    string projectPath,
+    string tagName,
+    string message,
+    string commitHash = null
+)
+```
+
+### DeleteTagLocalAsync
+
+Deletes a local tag.
+
+```csharp
+Task<Result> DeleteTagLocalAsync(
+    string projectPath,
+    string tagName
+)
+```
+
+### PushTagAsync
+
+Pushes a tag to remote.
+
+```csharp
+Task<Result> PushTagAsync(
+    string projectPath,
+    string tagName
+)
+```
+
+### GetTagsAsync
+
+Retrieves all tags.
+
+```csharp
+Task<IEnumerable<GitTagItem>> GetTagsAsync(string projectPath)
+```
+
+## Configuration
+
+### GetConfigAsync
+
+Gets a configuration value.
+
+```csharp
+Task<string> GetConfigAsync(
+    string projectPath,
+    string key,
+    bool isGlobal = false
+)
+```
+
+### SetConfigAsync
+
+Sets a configuration value.
+
+```csharp
+Task<Result> SetConfigAsync(
+    string projectPath,
+    string key,
+    string value,
+    bool isGlobal = false
+)
+```
+
+### UnsetConfigAsync
+
+Removes a configuration value.
+
+```csharp
+Task<Result> UnsetConfigAsync(
+    string projectPath,
+    string key,
+    bool isGlobal = false
+)
+```
+
+## Utilities
+
+### IsGitInstalled
+
+Checks if Git is available (always returns true with LibGit2Sharp).
+
+```csharp
+bool IsGitInstalled()
+```
+
+### HasUpstreamAsync
+
+Checks if a branch has an upstream remote.
+
+```csharp
+Task<bool> HasUpstreamAsync(
+    string projectPath,
+    string branchName
+)
+```
+
+### GetDiffAsync
+
+Gets diff for a specific file.
+
+```csharp
+Task<string> GetDiffAsync(
+    string projectPath,
+    string file,
+    string? revision = null
+)
+```
+
+### GetFileStatsAsync
+
+Gets addition/deletion statistics for a file.
+
+```csharp
+Task<(int additions, int deletions)> GetFileStatsAsync(
+    string projectPath,
+    string filePath
+)
+```
+
+### GetMetadataAsync
+
+Gets repository metadata.
+
+```csharp
+Task<Result<GitRepositoryMetadata>> GetMetadataAsync(string projectPath)
+```
+
+<ResponseField name="metadata" type="GitRepositoryMetadata">
+  Includes UserName, UserEmail, RemoteUrl, CurrentBranch, IsDetached, Ahead, Behind, HasUpstream
+</ResponseField>

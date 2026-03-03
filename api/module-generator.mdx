@@ -1,0 +1,204 @@
+---
+title: "Module Generator Service"
+description: "API reference for the Module Generator Service that creates modular components across Clean Architecture layers"
+---
+
+## Overview
+
+The Module Generator Service creates complete module scaffolding across multiple architectural layers (API, Application, Domain, Infrastructure) with support for both Ardalis Endpoints and Classic Controller patterns.
+
+**Interface**: `IModuleGeneratorService`  
+**Implementation**: `ModuleGeneratorService`  
+**Namespace**: `Chapi.Infrastructure.Services`
+
+## Interface Definition
+
+### IModuleGeneratorService
+
+```csharp
+public interface IModuleGeneratorService
+{
+    Task GenerateModuleAsync(
+        string projectDirectory, 
+        string moduleName, 
+        string dbName
+    );
+}
+```
+
+## Methods
+
+### GenerateModuleAsync
+
+Generates a complete module with default CRUD operations (Get, Post, GetById) across all architectural layers.
+
+```csharp
+Task GenerateModuleAsync(
+    string projectDirectory,
+    string moduleName,
+    string dbName
+)
+```
+
+<ParamField path="projectDirectory" type="string" required>
+  The root directory of the project where the module will be generated
+</ParamField>
+
+<ParamField path="moduleName" type="string" required>
+  The name of the module to generate (will be capitalized automatically)
+</ParamField>
+
+<ParamField path="dbName" type="string" required>
+  The database context name for infrastructure layer integration
+</ParamField>
+
+## Architecture Detection
+
+The service automatically detects the project architecture style:
+
+- **Ardalis (Endpoints)**: If an `Endpoints` folder exists in the API project
+- **Classic (Controllers)**: If using traditional MVC controller pattern
+
+```csharp
+bool isArdalis = Directory.Exists(Path.Combine(apiProjectPath, "Endpoints"));
+string apiSubFolder = isArdalis ? "Endpoints" : "Controllers";
+```
+
+## Generated Structure
+
+For a module named "Product", the service creates:
+
+### Directory Structure
+
+```
+API/
+  └── Endpoints/Product/        (or Controllers/Product/)
+      ├── Get.cs
+      ├── Post.cs
+      └── GetById.cs
+
+Application/Product/
+  ├── GetHandler.cs
+  ├── PostHandler.cs
+  └── GetByIdHandler.cs
+
+Domain/Product/
+  ├── Product.cs
+  └── IProductRepository.cs
+
+Infrastructure/{DbName}/Repositories/Product/
+  └── ProductRepository.cs
+```
+
+## Default Operations
+
+The service generates three default CRUD operations:
+
+<ResponseField name="Get" type="operation">
+  Retrieves all records from the entity collection
+</ResponseField>
+
+<ResponseField name="Post" type="operation">
+  Creates a new entity record
+</ResponseField>
+
+<ResponseField name="GetById" type="operation">
+  Retrieves a single entity by its identifier
+</ResponseField>
+
+## Dependency Injection
+
+For **Classic architecture**, the service automatically registers dependencies in `DependencyInjection.cs`.
+
+For **Ardalis architecture**, dependency injection is handled by Scrutor auto-discovery (no manual registration).
+
+```csharp
+string dependencyInjectionPath = Path.Combine(apiProjectPath, "Config", "DependencyInjection.cs");
+if (File.Exists(dependencyInjectionPath) && !isArdalis)
+{
+    AddDependencyInjection.Add(dependencyInjectionPath, moduleName, new[] { operation });
+}
+```
+
+## Transaction Management
+
+The service uses `RollbackManager` to ensure atomicity:
+
+```csharp
+var rollbackEntry = RollbackManager.StartTransaction(moduleName, moduleName, operation);
+try
+{
+    // Generate files...
+    RollbackManager.CommitTransaction(rollbackEntry);
+}
+catch (Exception ex)
+{
+    // Rollback is handled automatically
+    throw new Exception($"Error al generar operacion {operation}: {ex.Message}");
+}
+```
+
+## Usage Example
+
+```csharp
+// Inject the service
+var moduleGenerator = serviceProvider.GetRequiredService<IModuleGeneratorService>();
+
+try
+{
+    await moduleGenerator.GenerateModuleAsync(
+        projectDirectory: @"C:\Projects\MyApp",
+        moduleName: "product",  // Will be capitalized to "Product"
+        dbName: "ApplicationDb"
+    );
+    
+    Console.WriteLine("Module generated successfully!");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error: {ex.Message}");
+}
+```
+
+## Dependencies
+
+The service requires the following dependencies:
+
+<ParamField path="INotificationService" type="service" required>
+  Used to display progress notifications to the user
+</ParamField>
+
+## Code Generation Helpers
+
+The service uses the following helper classes:
+
+- `FindApiDirectory` - Locates the API project directory
+- `AddApiEndpointMethod` - Generates Ardalis endpoint files
+- `AddApiControllerMethod` - Generates classic controller methods
+- `AddApplicationMethod` - Generates application layer handlers
+- `AddDomainMethod` - Generates domain entities and interfaces
+- `AddInfrastructureMethod` - Generates repository implementations
+- `AddDependencyInjection` - Registers services in DI container
+
+## Error Handling
+
+The service throws exceptions in the following cases:
+
+- **API Project Not Found**: `"No se pudo detectar el proyecto API."`
+- **Operation Generation Failed**: `"Error al generar operacion {operation}: {message}"`
+
+## Notifications
+
+The service sends notifications during execution:
+
+```csharp
+_notificationService.ShowInfo($"Generando modulo: {moduleName}");
+_notificationService.ShowInfo($"Arquitectonico detectado: {(isArdalis ? "Ardalis (Endpoints)" : "Classic (Controllers)")}");
+```
+
+## Notes
+
+- Module names are automatically capitalized (e.g., "product" becomes "Product")
+- Ardalis projects use generic repositories by default
+- The service creates all necessary directories automatically
+- Rollback support ensures clean state on failure

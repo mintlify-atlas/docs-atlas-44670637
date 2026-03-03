@@ -1,0 +1,422 @@
+---
+title: AI Providers
+description: Configure AI providers including Gemini, OpenAI, and Claude for intelligent code assistance
+---
+
+Chapi Assistant supports multiple AI providers with automatic fallback. Configure your preferred provider or let the system choose based on availability.
+
+## Supported Providers
+
+<CardGroup cols={3}>
+  <Card title="Gemini" icon="google" color="#4285F4">
+    Google's Gemini models with multi-model fallback
+  </Card>
+  <Card title="OpenAI" icon="openai" color="#10A37F">
+    GPT-4 and other OpenAI models
+  </Card>
+  <Card title="Claude" icon="anthropic" color="#CC785C">
+    Anthropic's Claude models
+  </Card>
+</CardGroup>
+
+## Configuration
+
+AI provider settings are stored in `user.api.settings.json` in your application data folder:
+
+**Location**: `%AppData%/Chapi/user.api.settings.json`
+
+### Settings Structure
+
+<ParamField path="GeminiApiKey" type="string" default="">
+  Your Google AI API key for Gemini models. Get one at [Google AI Studio](https://makersuite.google.com/app/apikey).
+</ParamField>
+
+<ParamField path="OpenAiApiKey" type="string" default="">
+  Your OpenAI API key. Get one at [OpenAI Platform](https://platform.openai.com/api-keys).
+</ParamField>
+
+<ParamField path="ClaudeApiKey" type="string" default="">
+  Your Anthropic API key for Claude. Get one at [Anthropic Console](https://console.anthropic.com/).
+</ParamField>
+
+<ParamField path="PreferredAiProvider" type="string" default="Gemini">
+  Your preferred AI provider. Options:
+  - `Gemini`: Google's Gemini models
+  - `OpenAI`: OpenAI GPT models
+  - `Claude`: Anthropic Claude models
+</ParamField>
+
+### Example Configuration
+
+```json user.api.settings.json
+{
+  "GeminiApiKey": "AIzaSyD...",
+  "OpenAiApiKey": "sk-proj-...",
+  "ClaudeApiKey": "sk-ant-...",
+  "PreferredAiProvider": "Gemini",
+  "ProxyEnabled": false,
+  "ProxyUrl": "",
+  "ProxyUser": "",
+  "ProxyPass": ""
+}
+```
+
+## Provider Selection Logic
+
+The system uses a smart fallback mechanism to ensure AI features always work:
+
+<Steps>
+  <Step title="Preferred Provider">
+    Attempts to use the provider specified in `PreferredAiProvider` if its API key is configured
+  </Step>
+  
+  <Step title="Fallback Order">
+    If preferred provider is unavailable, tries providers in this order:
+    1. Gemini
+    2. OpenAI
+    3. Claude
+  </Step>
+  
+  <Step title="Error Handling">
+    If no provider is configured, throws an error prompting you to configure at least one
+  </Step>
+</Steps>
+
+```csharp App.xaml.cs (lines 95-123)
+services.AddTransient<IChatClient>(sp => 
+{
+    var settings = UserSettingsService.LoadSettings();
+    
+    // 1. Try preferred provider
+    if (settings.PreferredAiProvider == "OpenAI" && !string.IsNullOrWhiteSpace(settings.OpenAiApiKey))
+        return new OpenAiChatClient(settings.OpenAiApiKey);
+    
+    if (settings.PreferredAiProvider == "Claude" && !string.IsNullOrWhiteSpace(settings.ClaudeApiKey))
+        return new ClaudeChatClient(settings.ClaudeApiKey);
+    
+    if ((settings.PreferredAiProvider == "Gemini" || string.IsNullOrEmpty(settings.PreferredAiProvider)) 
+        && !string.IsNullOrWhiteSpace(settings.GeminiApiKey))
+        return new GeminiChatClient(settings.GeminiApiKey);
+
+    // 2. Fallback: Try any available (Gemini > OpenAI > Claude)
+    if (!string.IsNullOrWhiteSpace(settings.GeminiApiKey))
+        return new GeminiChatClient(settings.GeminiApiKey);
+
+    if (!string.IsNullOrWhiteSpace(settings.OpenAiApiKey))
+        return new OpenAiChatClient(settings.OpenAiApiKey);
+    
+    if (!string.IsNullOrWhiteSpace(settings.ClaudeApiKey))
+        return new ClaudeChatClient(settings.ClaudeApiKey);
+
+    throw new InvalidOperationException("No AI provider configured");
+});
+```
+
+## Gemini Configuration
+
+### Supported Models
+
+Gemini uses multi-model fallback for reliability:
+
+1. `gemini-3.0-flash` (primary)
+2. `gemini-2.5-flash` (fallback)
+3. `gemma-3` (fallback)
+
+<ParamField path="apiKey" type="string" required>
+  Google AI API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+</ParamField>
+
+### Features
+
+<CardGroup cols={2}>
+  <Card title="Streaming Support" icon="stream">
+    Uses streaming API to avoid HTTP/2 connection hanging
+  </Card>
+  <Card title="Timeout Protection" icon="clock">
+    35-second timeout per model attempt
+  </Card>
+  <Card title="Auto-Retry" icon="rotate">
+    Automatically tries next model on failure
+  </Card>
+  <Card title="Quota Handling" icon="gauge">
+    Detects and reports quota limit errors
+  </Card>
+</CardGroup>
+
+### Usage Example
+
+```csharp GeminiChatClient.cs
+public GeminiChatClient(string apiKey)
+{
+    _apiKey = apiKey;
+}
+
+public async Task<ChatResponse> GetResponseAsync(
+    IEnumerable<ChatMessage> chatMessages, 
+    ChatOptions? options = null, 
+    CancellationToken cancellationToken = default)
+{
+    var prompt = BuildPrompt(chatMessages);
+    var lastError = string.Empty;
+
+    // Try each model with timeout
+    foreach (var modelId in _models)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(35));
+
+            var googleAI = new GoogleAI(apiKey: _apiKey);
+            var model = googleAI.GenerativeModel(model: modelId);
+
+            var fullResponse = new StringBuilder();
+            await foreach (var chunk in model.GenerateContentStream(prompt, cancellationToken: cts.Token))
+            {
+                if (chunk.Text != null)
+                    fullResponse.Append(chunk.Text);
+            }
+
+            var text = CleanResponse(fullResponse.ToString());
+            if (!string.IsNullOrWhiteSpace(text))
+                return new ChatResponse(new[] { new ChatMessage(ChatRole.Assistant, text) });
+        }
+        catch (Exception ex)
+        {
+            lastError = HandleError(ex, modelId);
+        }
+    }
+
+    throw new Exception($"All Gemini models failed. Last error: {lastError}");
+}
+```
+
+## OpenAI Configuration
+
+### Supported Models
+
+<ParamField path="modelId" type="string" default="gpt-4o">
+  The OpenAI model to use. Can be customized when instantiating the client.
+</ParamField>
+
+<ParamField path="apiKey" type="string" required>
+  OpenAI API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+</ParamField>
+
+### Features
+
+- **Standard Chat Completions**: Uses OpenAI's `/v1/chat/completions` endpoint
+- **Bearer Authentication**: API key passed via Authorization header
+- **Flexible Model Selection**: Default to `gpt-4o`, customizable
+
+### Usage Example
+
+```csharp OpenAiChatClient.cs
+public OpenAiChatClient(string apiKey, string modelId = "gpt-4o")
+{
+    _apiKey = apiKey;
+    _modelId = modelId;
+    _httpClient = new HttpClient();
+    _httpClient.DefaultRequestHeaders.Authorization = 
+        new AuthenticationHeaderValue("Bearer", _apiKey);
+}
+
+public async Task<ChatResponse> GetResponseAsync(
+    IEnumerable<ChatMessage> chatMessages, 
+    ChatOptions? options = null, 
+    CancellationToken cancellationToken = default)
+{
+    var messages = chatMessages.Select(m => new 
+    { 
+        role = m.Role.Value.ToLower(), 
+        content = m.Text 
+    }).ToList();
+
+    var requestBody = new
+    {
+        model = _modelId,
+        messages = messages
+    };
+
+    var response = await _httpClient.PostAsJsonAsync(
+        "https://api.openai.com/v1/chat/completions", 
+        requestBody, 
+        cancellationToken);
+        
+    response.EnsureSuccessStatusCode();
+
+    var jsonResponse = await response.Content.ReadFromJsonAsync<OpenAiResponse>(
+        cancellationToken: cancellationToken);
+        
+    var content = jsonResponse?.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
+
+    return new ChatResponse(new[] { new ChatMessage(ChatRole.Assistant, content) });
+}
+```
+
+## Claude Configuration
+
+### Supported Models
+
+<ParamField path="modelId" type="string" default="claude-3-opus-20240229">
+  The Claude model to use. Can be customized when instantiating the client.
+</ParamField>
+
+<ParamField path="apiKey" type="string" required>
+  Anthropic API key from [Anthropic Console](https://console.anthropic.com/)
+</ParamField>
+
+### Features
+
+- **Messages API**: Uses Anthropic's `/v1/messages` endpoint
+- **API Version**: Fixed to `2023-06-01`
+- **Token Limit**: Default max_tokens set to 1024
+
+### Usage Example
+
+```csharp ClaudeChatClient.cs
+public ClaudeChatClient(string apiKey, string modelId = "claude-3-opus-20240229")
+{
+    _apiKey = apiKey;
+    _modelId = modelId;
+    _httpClient = new HttpClient();
+    _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+    _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+}
+
+public async Task<ChatResponse> GetResponseAsync(
+    IEnumerable<ChatMessage> chatMessages, 
+    ChatOptions? options = null, 
+    CancellationToken cancellationToken = default)
+{
+    var messages = chatMessages.Select(m => new 
+    { 
+        role = m.Role.Value.ToLower(), 
+        content = m.Text 
+    }).ToList();
+
+    var requestBody = new
+    {
+        model = _modelId,
+        messages = messages,
+        max_tokens = 1024
+    };
+
+    var response = await _httpClient.PostAsJsonAsync(
+        "https://api.anthropic.com/v1/messages", 
+        requestBody, 
+        cancellationToken);
+        
+    response.EnsureSuccessStatusCode();
+
+    var jsonResponse = await response.Content.ReadFromJsonAsync<ClaudeResponse>(
+        cancellationToken: cancellationToken);
+        
+    var content = jsonResponse?.Content?.FirstOrDefault()?.Text ?? string.Empty;
+
+    return new ChatResponse(new[] { new ChatMessage(ChatRole.Assistant, content) });
+}
+```
+
+## Proxy Configuration
+
+If you're behind a corporate proxy, configure these settings:
+
+<ParamField path="ProxyEnabled" type="boolean" default={false}>
+  Enable proxy for AI provider connections
+</ParamField>
+
+<ParamField path="ProxyUrl" type="string" default="">
+  Proxy server URL (e.g., `http://proxy.company.com:8080`)
+</ParamField>
+
+<ParamField path="ProxyUser" type="string" default="">
+  Proxy authentication username (if required)
+</ParamField>
+
+<ParamField path="ProxyPass" type="string" default="">
+  Proxy authentication password (if required)
+</ParamField>
+
+## Getting API Keys
+
+<Steps>
+  <Step title="Gemini (Google AI)">
+    1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+    2. Sign in with your Google account
+    3. Click "Create API Key"
+    4. Copy the generated key
+  </Step>
+  
+  <Step title="OpenAI">
+    1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+    2. Sign in or create an account
+    3. Click "Create new secret key"
+    4. Copy the key (it won't be shown again)
+  </Step>
+  
+  <Step title="Claude (Anthropic)">
+    1. Visit [Anthropic Console](https://console.anthropic.com/)
+    2. Sign in or create an account
+    3. Navigate to API Keys
+    4. Create and copy your API key
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No AI provider configured">
+    **Error**: `InvalidOperationException: No se ha configurado ningún proveedor de IA`
+    
+    **Solution**: 
+    - Add at least one API key to `user.api.settings.json`
+    - Ensure the key is not empty or whitespace
+    - Restart the application after updating settings
+  </Accordion>
+  
+  <Accordion title="Quota limit reached (Gemini)">
+    **Error**: `⚠️ Se alcanzó el límite de cuota del modelo de IA`
+    
+    **Solution**:
+    - Check your usage at [Google AI Studio](https://makersuite.google.com/)
+    - Wait for quota reset or upgrade your plan
+    - Configure an alternative provider (OpenAI/Claude)
+  </Accordion>
+  
+  <Accordion title="All Gemini models failed">
+    **Error**: `Fallaron todos los modelos de Gemini`
+    
+    **Solution**:
+    - Verify your API key is valid
+    - Check network connectivity
+    - Review the last error message for specific issues
+    - Try alternative providers
+  </Accordion>
+  
+  <Accordion title="API key invalid or revoked">
+    **Solution**:
+    - Regenerate API key from provider's console
+    - Update `user.api.settings.json` with new key
+    - Ensure no extra spaces or characters in the key
+  </Accordion>
+  
+  <Accordion title="Connection timeout">
+    **Solution**:
+    - Check internet connection
+    - Configure proxy settings if behind firewall
+    - Increase timeout if possible (35s for Gemini)
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+Keep your API keys secure. Never commit `user.api.settings.json` to version control or share your keys publicly.
+</Warning>
+
+## Source Code Reference
+
+- Gemini Client: `~/workspace/source/Chapi/Infrastructure/AI/GeminiChatClient.cs`
+- OpenAI Client: `~/workspace/source/Chapi/Infrastructure/AI/OpenAiChatClient.cs`
+- Claude Client: `~/workspace/source/Chapi/Infrastructure/AI/ClaudeChatClient.cs`
+- Settings Model: `~/workspace/source/Chapi/Infrastructure/Persistence/Settings/UserSettings.cs`
+- Provider Selection: `~/workspace/source/Chapi/App.xaml.cs:95-123`

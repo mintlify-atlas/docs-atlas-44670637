@@ -1,0 +1,572 @@
+---
+title: 'Git Management'
+description: 'Comprehensive Git operations including commits, branches, stashing, and remote synchronization'
+icon: 'code-branch'
+---
+
+## Overview
+
+Chapi Assistant provides a full-featured Git management system integrated directly into your development workflow. Manage commits, branches, stashes, and remote repositories without leaving your IDE.
+
+<Info>
+All Git operations are built on top of LibGit2Sharp with validation, error handling, and user notifications.
+</Info>
+
+## Commit Management
+
+### Making Commits
+
+Commit changes with automatic validation and notifications:
+
+```csharp
+var request = new CommitRequest
+{
+    ProjectPath = @"C:\Projects\MyApp",
+    Message = "Add customer creation feature",
+    Files = new[] { "Customer.cs", "CustomerRepository.cs" }
+};
+
+var result = await commitChangesUseCase.ExecuteAsync(request);
+```
+
+<Tabs>
+  <Tab title="Basic Commit">
+    Commit specific files with a message:
+
+    ```csharp
+    var request = new CommitRequest
+    {
+        ProjectPath = projectPath,
+        Message = "Fix validation bug in customer form",
+        Files = new[] { 
+            "Views/CustomerView.xaml",
+            "ViewModels/CustomerViewModel.cs" 
+        }
+    };
+
+    var result = await commitChangesUseCase.ExecuteAsync(request);
+
+    if (result.IsSuccess)
+    {
+        var commit = result.Value;
+        Console.WriteLine($"Committed: {commit.Sha}");
+    }
+    ```
+  </Tab>
+
+  <Tab title="Commit All Changes">
+    Commit all modified files:
+
+    ```csharp
+    // First, load all changes
+    var changes = await loadChangesUseCase.ExecuteAsync(projectPath);
+    
+    var request = new CommitRequest
+    {
+        ProjectPath = projectPath,
+        Message = "Implement order processing module",
+        Files = changes.Select(c => c.FilePath)
+    };
+
+    await commitChangesUseCase.ExecuteAsync(request);
+    ```
+  </Tab>
+
+  <Tab title="With Validation">
+    The commit use case automatically validates:
+
+    ```csharp
+    // Validation checks:
+    // - Project path is valid
+    // - Project directory exists
+    // - Commit message is not empty
+    // - At least one file is selected
+
+    var result = await commitChangesUseCase.ExecuteAsync(request);
+
+    if (!result.IsSuccess)
+    {
+        // Possible errors:
+        // - "Ruta de proyecto invalida"
+        // - "El proyecto no existe"
+        // - "Debes escribir un mensaje de commit"
+        // - "No hay archivos seleccionados para hacer commit"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Commit Validation
+
+<AccordionGroup>
+  <Accordion title="Required Fields">
+    - **ProjectPath**: Must be a valid, existing directory
+    - **Message**: Cannot be empty or whitespace
+    - **Files**: Must contain at least one file
+  </Accordion>
+
+  <Accordion title="Automatic Notifications">
+    - Success: "Commit realizado: {message}"
+    - Error: "Error al hacer commit: {error}"
+    - Warning: Validation failures
+  </Accordion>
+</AccordionGroup>
+
+## Branch Operations
+
+### Creating Branches
+
+```csharp
+var result = await createBranchUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    branchName: "feature/customer-search",
+    fromCommitOrBranch: "develop" // Optional
+);
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the Git repository.
+</ParamField>
+
+<ParamField path="branchName" type="string" required>
+  Name of the new branch to create.
+</ParamField>
+
+<ParamField path="fromCommitOrBranch" type="string">
+  Optional commit SHA or branch name to create from. Defaults to HEAD.
+</ParamField>
+
+<Tabs>
+  <Tab title="From Current HEAD">
+    Create a branch from the current commit:
+
+    ```csharp
+    await createBranchUseCase.ExecuteAsync(
+        projectPath,
+        "feature/new-feature"
+    );
+    // Creates from HEAD
+    ```
+  </Tab>
+
+  <Tab title="From Another Branch">
+    Create a branch from a specific branch:
+
+    ```csharp
+    await createBranchUseCase.ExecuteAsync(
+        projectPath,
+        "feature/customer-export",
+        "develop"
+    );
+    // Creates from 'develop' branch
+    ```
+  </Tab>
+
+  <Tab title="From Commit SHA">
+    Create a branch from a specific commit:
+
+    ```csharp
+    await createBranchUseCase.ExecuteAsync(
+        projectPath,
+        "hotfix/bug-123",
+        "a1b2c3d4"
+    );
+    // Creates from commit a1b2c3d4
+    ```
+  </Tab>
+</Tabs>
+
+### Switching Branches
+
+```csharp
+var result = await switchBranchUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    branchName: "develop"
+);
+```
+
+### Listing Branches
+
+```csharp
+var branches = await getBranchesUseCase.ExecuteAsync(projectPath);
+
+foreach (var branch in branches)
+{
+    Console.WriteLine(branch);
+}
+```
+
+## Stash Management
+
+### Stashing Changes
+
+Temporarily save changes without committing:
+
+```csharp
+var result = await stashChangesUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    message: "WIP: Customer search feature",
+    files: null // null = stash all changes
+);
+```
+
+<Tabs>
+  <Tab title="Stash All">
+    Stash all uncommitted changes:
+
+    ```csharp
+    await stashChangesUseCase.ExecuteAsync(
+        projectPath,
+        "Saving work before branch switch"
+    );
+    ```
+  </Tab>
+
+  <Tab title="Stash Specific Files">
+    Stash only certain files:
+
+    ```csharp
+    await stashChangesUseCase.ExecuteAsync(
+        projectPath,
+        "Temporary UI changes",
+        files: new[] { "MainWindow.xaml", "App.xaml" }
+    );
+    ```
+  </Tab>
+
+  <Tab title="Auto-Stash">
+    Automatic stashing during pull operations:
+
+    ```csharp
+    // Pull with auto-stash
+    await pullChangesUseCase.ExecuteAsync(
+        projectPath,
+        "main",
+        stashChanges: true // Automatically stash and restore
+    );
+    ```
+  </Tab>
+</Tabs>
+
+### Stash Operations
+
+<CardGroup cols={2}>
+  <Card title="Stash Pop" icon="rotate-left">
+    Apply and remove the latest stash:
+    ```csharp
+    await stashPopUseCase.ExecuteAsync(
+        projectPath,
+        index: 0
+    );
+    ```
+  </Card>
+  
+  <Card title="Stash Drop" icon="trash">
+    Remove a stash without applying:
+    ```csharp
+    await stashDropUseCase.ExecuteAsync(
+        projectPath,
+        index: 0
+    );
+    ```
+  </Card>
+  
+  <Card title="Stash Clear" icon="broom">
+    Remove all stashes:
+    ```csharp
+    await stashClearUseCase.ExecuteAsync(
+        projectPath
+    );
+    ```
+  </Card>
+</CardGroup>
+
+## Remote Operations
+
+### Push Changes
+
+Push commits to remote repository:
+
+```csharp
+var result = await pushChangesUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    branch: "main"
+);
+```
+
+<Check>
+Success notification: "Push exitoso a {branch}"
+</Check>
+
+### Pull Changes
+
+Fetch and merge changes from remote:
+
+```csharp
+var result = await pullChangesUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    branch: "main",
+    stashChanges: true // Auto-stash local changes
+);
+```
+
+<Tabs>
+  <Tab title="Simple Pull">
+    Pull without stashing:
+
+    ```csharp
+    await pullChangesUseCase.ExecuteAsync(
+        projectPath,
+        "main",
+        stashChanges: false
+    );
+    ```
+  </Tab>
+
+  <Tab title="Pull with Auto-Stash">
+    Automatically stash local changes, pull, then restore:
+
+    ```csharp
+    var result = await pullChangesUseCase.ExecuteAsync(
+        projectPath,
+        "main",
+        stashChanges: true
+    );
+
+    // Workflow:
+    // 1. Stash local changes
+    // 2. Pull from remote
+    // 3. Attempt to pop stash
+    // 4. Notify if conflicts occurred
+    ```
+
+    <Warning>
+    If conflicts occur when restoring stash, you'll receive a notification to manually resolve.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Fetch Changes
+
+```csharp
+var result = await fetchChangesUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp"
+);
+```
+
+## History & Diff Operations
+
+### View Commit History
+
+```csharp
+var history = await loadHistoryUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp"
+);
+
+foreach (var commit in history)
+{
+    Console.WriteLine($"{commit.Sha}: {commit.Message}");
+}
+```
+
+### View File Differences
+
+```csharp
+var diff = await getFileDiffUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    filePath: "Customer.cs"
+);
+```
+
+### Get Commit Statistics
+
+```csharp
+var stats = await getCommitStatsUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    commitSha: "a1b2c3d4"
+);
+
+Console.WriteLine($"Files changed: {stats.FilesChanged}");
+Console.WriteLine($"Insertions: {stats.Insertions}");
+Console.WriteLine($"Deletions: {stats.Deletions}");
+```
+
+### Files Changed in Commit
+
+```csharp
+var files = await getFilesChangedInCommitUseCase.ExecuteAsync(
+    projectPath,
+    commitSha
+);
+```
+
+## Tag Management
+
+<Tabs>
+  <Tab title="Create Tag">
+    ```csharp
+    var result = await createTagUseCase.ExecuteAsync(
+        projectPath: @"C:\Projects\MyApp",
+        tagName: "v1.0.0",
+        message: "Release version 1.0.0"
+    );
+    ```
+  </Tab>
+
+  <Tab title="Delete Tag">
+    ```csharp
+    var result = await deleteTagUseCase.ExecuteAsync(
+        projectPath: @"C:\Projects\MyApp",
+        tagName: "v0.9.0"
+    );
+    ```
+  </Tab>
+
+  <Tab title="Load Releases">
+    ```csharp
+    var releases = await loadReleasesUseCase.ExecuteAsync(
+        projectPath: @"C:\Projects\MyApp"
+    );
+    ```
+  </Tab>
+</Tabs>
+
+## Change Management
+
+### Load Changes
+
+```csharp
+var changes = await loadChangesUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp"
+);
+
+foreach (var change in changes)
+{
+    Console.WriteLine($"{change.Status}: {change.FilePath}");
+}
+```
+
+### Discard Changes
+
+```csharp
+var result = await discardChangesUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    files: new[] { "Customer.cs" }
+);
+```
+
+<Warning>
+Discarding changes is irreversible. Ensure you want to lose the modifications before proceeding.
+</Warning>
+
+### Reset Commit
+
+```csharp
+var result = await resetCommitUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    commitSha: "a1b2c3d4",
+    resetType: ResetMode.Mixed // Soft, Mixed, or Hard
+);
+```
+
+## Repository Association
+
+### Associate Remote Repository
+
+```csharp
+var result = await associateGitUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    remoteUrl: "https://github.com/myorg/myapp.git"
+);
+```
+
+## Error Handling
+
+<CodeGroup>
+```csharp Validation Errors
+// Common validation errors
+if (!result.IsSuccess)
+{
+    switch (result.Error)
+    {
+        case "Ruta de proyecto invalida":
+            // Invalid project path
+            break;
+        case "El proyecto no existe":
+            // Project directory doesn't exist
+            break;
+        case "Nombre de rama invalido":
+            // Invalid branch name
+            break;
+    }
+}
+```
+
+```csharp Operation Errors
+try
+{
+    var result = await pushChangesUseCase.ExecuteAsync(
+        projectPath,
+        branch
+    );
+    
+    if (!result.IsSuccess)
+    {
+        // Could be:
+        // - Network error
+        // - Authentication failure
+        // - Rejected push
+        // - No upstream branch
+        Console.WriteLine($"Push failed: {result.Error}");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Fatal error: {ex.Message}");
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Commit Messages">
+    - Write clear, concise commit messages
+    - Use imperative mood ("Add feature" not "Added feature")
+    - Keep first line under 50 characters
+    - Add detailed description if needed
+  </Accordion>
+
+  <Accordion title="Branch Naming">
+    - Use prefixes: `feature/`, `bugfix/`, `hotfix/`
+    - Keep names lowercase with hyphens
+    - Be descriptive: `feature/customer-search`
+    - Include ticket numbers: `bugfix/PROJ-123-fix-validation`
+  </Accordion>
+
+  <Accordion title="Stashing">
+    - Always add descriptive stash messages
+    - Use auto-stash when pulling with local changes
+    - Clean up old stashes regularly
+    - Pop stashes as soon as possible
+  </Accordion>
+
+  <Accordion title="Remote Sync">
+    - Pull before starting new work
+    - Push frequently to backup work
+    - Fetch regularly to stay updated
+    - Resolve conflicts promptly
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="AI Assistant" icon="sparkles" href="/features/ai-assistant">
+    Generate commit messages automatically with AI
+  </Card>
+  
+  <Card title="Project Creation" icon="folder-plus" href="/features/project-creation">
+    New projects come with Git initialized and configured
+  </Card>
+</CardGroup>

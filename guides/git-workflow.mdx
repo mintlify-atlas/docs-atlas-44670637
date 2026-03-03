@@ -1,0 +1,588 @@
+---
+title: Git Workflow
+description: Master Git operations with Chapi's visual interface and AI-powered assistance
+---
+
+Chapi Assistant provides a comprehensive Git workflow with visual change tracking, intelligent commit generation, and seamless remote synchronization.
+
+## Overview
+
+Chapi's Git integration includes:
+
+- **Real-time change detection** with file watching
+- **Visual diff viewer** using DiffPlex
+- **AI-generated commit messages** following Conventional Commits
+- **Stash management** for work-in-progress changes
+- **Branch operations** with conflict detection
+- **Remote authentication** for GitHub and GitLab
+
+## Viewing Changes
+
+Chapi automatically detects file changes in your repository.
+
+<Steps>
+  <Step title="Change Detection">
+    Chapi watches your repository for changes using `GitChangeWatcher`:
+    
+    ```csharp
+    // Automatic change detection
+    _changeWatcher.WatchRepository(projectPath);
+    _changeWatcher.RepositoryChanged += OnRepositoryChanged;
+    ```
+    
+    Changes are cached for performance (similar to GitHub Desktop):
+    ```
+    📊 Modified: 3 files
+    📝 Untracked: 1 file
+    ➕ Additions: 150 lines
+    ➖ Deletions: 45 lines
+    ```
+  </Step>
+
+  <Step title="Change Types">
+    Chapi displays different change statuses:
+    
+    - **M** - Modified: Existing file changed
+    - **A** - Added: New file staged
+    - **D** - Deleted: File removed
+    - **R** - Renamed: File renamed or moved
+    - **?** - Untracked: New file not yet added
+    - **U** - Conflict: Merge conflict detected
+  </Step>
+
+  <Step title="Visual Diff">
+    Click any file to see line-by-line changes:
+    
+    ```diff
+    - Old line (deleted)
+    + New line (added)
+      Unchanged line (context)
+    ```
+    
+    The diff viewer uses DiffPlex with intelligent context:
+    ```csharp
+    var diffBuilder = new InlineDiffBuilder(new Differ());
+    var diff = diffBuilder.BuildDiffModel(oldText, newText);
+    ```
+  </Step>
+</Steps>
+
+## Making Commits
+
+<Tabs>
+  <Tab title="Manual Commit">
+    Create commits with custom messages:
+    
+    <Steps>
+      <Step title="Select Files">
+        Choose which files to include in the commit:
+        
+        - Click individual files to select/deselect
+        - Use "Select All" for all changes
+        - Use "Deselect All" to clear selection
+      </Step>
+
+      <Step title="Write Commit Message">
+        Follow Conventional Commits format:
+        
+        ```
+        feat(auth): add OAuth2 authentication
+
+        Implement GitHub and GitLab OAuth providers with:
+        - Token storage and validation
+        - Automatic credential refresh
+        - Avatar caching service
+        ```
+        
+        **Summary**: `type(scope): brief description` (max 72 chars)
+        
+        **Description**: Detailed explanation with bullet points
+      </Step>
+
+      <Step title="Commit Changes">
+        Click "Commit" to save your changes:
+        
+        ```csharp
+        var request = new CommitRequest
+        {
+            ProjectPath = projectPath,
+            Message = $"{summary}\n\n{description}",
+            Files = selectedFiles
+        };
+        
+        await _commitChangesUseCase.ExecuteAsync(request);
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="AI-Generated Commit">
+    Let AI analyze your changes and generate the commit message:
+    
+    <Steps>
+      <Step title="Select Changed Files">
+        Select the files you want to commit (at least one required).
+      </Step>
+
+      <Step title="Generate Message">
+        Click the "Generate with AI" button:
+        
+        ```csharp
+        await _generateCommitMessageUseCase.ExecuteAsync(diffContent);
+        ```
+        
+        The AI analyzes the diff and returns:
+        ```json
+        {
+          "summary": "feat(git): implement AI commit generation",
+          "description": "Add Gemini integration for commit messages.\n\n- Create GenerateCommitMessageUseCase\n- Integrate with ChangesViewModel\n- Add streaming response support"
+        }
+        ```
+      </Step>
+
+      <Step title="Review and Commit">
+        Review the AI-generated message, edit if needed, then commit.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Via AI Assistant">
+    Use natural language to commit:
+    
+    ```bash
+    # Simple commit
+    "Commit all changes with message: Add user authentication"
+    
+    # Commit and push
+    "Commit these changes and push to remote"
+    
+    # AI-generated message
+    "Analyze my changes and create a professional commit"
+    ```
+    
+    The AI Assistant will:
+    1. Analyze modified and untracked files
+    2. Generate appropriate commit message
+    3. Execute commit
+    4. Optionally push to remote
+  </Tab>
+</Tabs>
+
+## Stash Management
+
+Save work-in-progress changes without committing:
+
+<Steps>
+  <Step title="Create Stash">
+    Select files and click "Stash Selected":
+    
+    ```csharp
+    await _stashChangesUseCase.ExecuteAsync(
+        projectPath, 
+        message: "WIP: implementing OAuth",
+        files: selectedFiles
+    );
+    ```
+    
+    Result:
+    ```
+    ✅ Saved to stash: WIP: implementing OAuth
+    ```
+  </Step>
+
+  <Step title="View Stashes">
+    See all stashes for the current branch:
+    
+    ```
+    stash@{0}: On main: WIP: implementing OAuth
+    stash@{1}: On main: Experimental feature
+    ```
+    
+    Click a stash to view its contents and diff.
+  </Step>
+
+  <Step title="Apply Stash">
+    Restore stashed changes:
+    
+    ```csharp
+    // Pop stash (apply and remove)
+    await _stashPopUseCase.ExecuteAsync(projectPath, index: 0);
+    
+    // Restore single file from stash
+    await _gitRepository.RestoreFileFromStashAsync(
+        projectPath, "stash@{0}", filePath
+    );
+    ```
+  </Step>
+
+  <Step title="Manage Stashes">
+    - **Drop**: Remove a specific stash
+    - **Clear**: Remove all stashes
+    - **Restore File**: Extract single file from stash
+  </Step>
+</Steps>
+
+## Branch Operations
+
+<Tabs>
+  <Tab title="Create Branch">
+    ```csharp
+    await _createBranchUseCase.ExecuteAsync(
+        projectPath, 
+        branchName: "feature/oauth-integration"
+    );
+    ```
+    
+    Via AI Assistant:
+    ```
+    "Create a new branch called feature/oauth-integration"
+    ```
+  </Tab>
+
+  <Tab title="Switch Branch">
+    ```csharp
+    await _switchBranchUseCase.ExecuteAsync(
+        projectPath,
+        branchName: "develop"
+    );
+    ```
+    
+    Via AI Assistant:
+    ```
+    "Switch to develop branch"
+    ```
+  </Tab>
+
+  <Tab title="Merge Branch">
+    ```csharp
+    // Check for conflicts first
+    var (hasConflicts, message) = await _gitRepository
+        .CheckMergeConflictsAsync(projectPath, sourceBranch);
+    
+    if (!hasConflicts)
+    {
+        await _gitRepository.MergeBranchAsync(
+            projectPath, 
+            sourceBranch,
+            fastForward: true
+        );
+    }
+    ```
+  </Tab>
+
+  <Tab title="Delete Branch">
+    ```csharp
+    await _gitRepository.DeleteBranchAsync(
+        projectPath,
+        branchName: "feature/completed",
+        force: false,
+        deleteRemote: true
+    );
+    ```
+  </Tab>
+</Tabs>
+
+## Remote Operations
+
+### Authentication
+
+Chapi supports OAuth authentication for GitHub and GitLab:
+
+<Steps>
+  <Step title="Detect Provider">
+    Chapi automatically detects the Git provider from remote URL:
+    
+    ```csharp
+    var provider = _authFactory.DetectProviderFromUrl(remoteUrl);
+    // Returns: GitProvider.GitHub or GitProvider.GitLab
+    ```
+  </Step>
+
+  <Step title="OAuth Flow">
+    Click the provider icon to authenticate:
+    
+    1. **Open browser** for OAuth authorization
+    2. **Grant permissions** to Chapi Assistant
+    3. **Redirect to localhost** callback
+    4. **Exchange code** for access token
+    5. **Store credentials** securely
+    
+    ```csharp
+    var result = await provider.AuthenticateAsync();
+    if (result.IsSuccess)
+    {
+        await _credentialStorage.SaveCredentialAsync(
+            "GitHub", 
+            result.Data.Username, 
+            result.Data.AccessToken
+        );
+    }
+    ```
+  </Step>
+
+  <Step title="Avatar Display">
+    After authentication, Chapi shows your avatar:
+    
+    ```csharp
+    // GitHub avatar
+    var avatarUrl = $"https://github.com/{username}.png";
+    
+    // GitLab avatar (via API)
+    var avatarUrl = await AvatarCacheService.Instance
+        .GetGitLabAvatarUrlAsync(username);
+    ```
+  </Step>
+</Steps>
+
+### Push and Pull
+
+<Tabs>
+  <Tab title="Push">
+    ```csharp
+    await _pushChangesUseCase.ExecuteAsync(
+        projectPath,
+        branch: "main"
+    );
+    ```
+    
+    With authentication, credentials are used automatically:
+    ```bash
+    git push origin main
+    # Uses stored OAuth token
+    ```
+  </Tab>
+
+  <Tab title="Pull">
+    ```csharp
+    await _pullChangesUseCase.ExecuteAsync(
+        projectPath,
+        branch: "main",
+        rebase: true
+    );
+    ```
+  </Tab>
+
+  <Tab title="Fetch">
+    ```csharp
+    await _fetchChangesUseCase.ExecuteAsync(
+        projectPath,
+        isSilent: false
+    );
+    ```
+  </Tab>
+
+  <Tab title="Sync Status">
+    Chapi shows sync indicators:
+    
+    ```
+    ⬆️ Ahead: 3 commits (unpushed)
+    ⬇️ Behind: 1 commit (not pulled)
+    ```
+    
+    ```csharp
+    var (ahead, behind) = await _gitRepository
+        .GetAheadBehindCountAsync(projectPath);
+    ```
+  </Tab>
+</Tabs>
+
+## Tag Management
+
+Create and manage Git tags for releases:
+
+```csharp
+// Create tag
+await _createTagUseCase.ExecuteAsync(
+    projectPath,
+    tagName: "v1.0.0",
+    message: "First stable release"
+);
+
+// Push tag to remote
+await _gitRepository.PushTagAsync(projectPath, "v1.0.0");
+
+// List all tags
+var tags = await _gitRepository.GetTagsAsync(projectPath);
+```
+
+Via AI Assistant:
+```
+"Create tag v1.0.0 with message: First stable release"
+```
+
+## Advanced Operations
+
+### Reset Commit
+
+Undo the last commit:
+
+```csharp
+await _resetCommitUseCase.ExecuteAsync(
+    projectPath,
+    mode: ResetMode.Soft  // Keep changes in working directory
+);
+```
+
+Reset modes:
+- **Soft**: Keep changes staged
+- **Mixed**: Keep changes unstaged
+- **Hard**: Discard all changes
+
+### Discard Changes
+
+Revert uncommitted changes:
+
+```csharp
+// Discard specific files
+await _discardChangesUseCase.ExecuteAsync(
+    projectPath,
+    files: new[] { "src/file.cs" }
+);
+
+// Discard all changes
+await _discardChangesUseCase.ExecuteAsync(
+    projectPath,
+    files: null
+);
+```
+
+### Rebase
+
+Rebase current branch onto another:
+
+```csharp
+await _gitRepository.RebaseBranchAsync(
+    projectPath,
+    targetBranch: "main"
+);
+```
+
+## AI Assistant Integration
+
+The AI Assistant understands Git context:
+
+```csharp
+public string BuildContextInfo(ConversationContext context)
+{
+    var git = context.CurrentProject.Git;
+    
+    return $@"
+    === GIT INFORMATION ===
+    🌿 Branch: {git.CurrentBranch}
+    📊 Sync: +{git.AheadBy} ahead, -{git.BehindBy} behind
+    ⚠️ Uncommitted: {git.ModifiedFiles.Count} modified
+    
+    Modified files:
+    {string.Join("\n", git.ModifiedFiles.Take(5))}
+    
+    Recent commits:
+    {string.Join("\n", git.RecentCommits.Take(5))}
+    ";
+}
+```
+
+Ask questions like:
+```
+"What files did I change?"
+"Explain my recent commits"
+"What's the difference between my branch and main?"
+"Do I have any merge conflicts?"
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Commit Frequently">
+    - Make small, focused commits
+    - Commit after each logical change
+    - Don't mix unrelated changes
+  </Accordion>
+
+  <Accordion title="Write Good Messages">
+    Follow Conventional Commits:
+    - `feat`: New feature
+    - `fix`: Bug fix
+    - `refactor`: Code refactoring
+    - `chore`: Maintenance tasks
+    - `docs`: Documentation changes
+  </Accordion>
+
+  <Accordion title="Use Stash for Context Switching">
+    - Stash before switching branches
+    - Name stashes descriptively
+    - Clean up old stashes regularly
+  </Accordion>
+
+  <Accordion title="Sync Regularly">
+    - Fetch/pull before starting work
+    - Push completed features promptly
+    - Resolve conflicts early
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimizations
+
+Chapi includes several Git performance optimizations:
+
+```csharp
+// Change caching (like GitHub Desktop)
+public class GitChangesCache
+{
+    private Dictionary<string, CachedChanges> _cache = new();
+    
+    public bool TryGetChanges(
+        string projectPath, 
+        out List<FileChange> changes)
+    {
+        if (_cache.TryGetValue(projectPath, out var cached))
+        {
+            changes = cached.Changes;
+            return true;
+        }
+        return false;
+    }
+}
+
+// Background stats loading
+private async Task LoadFileStatsInBackgroundAsync()
+{
+    // Load visible files first (top 20)
+    var visibleFiles = Changes.Take(20);
+    foreach (var file in visibleFiles)
+    {
+        var stats = await _gitRepository.GetFileStatsAsync(
+            projectPath, file.FilePath
+        );
+        file.Additions = stats.additions;
+        file.Deletions = stats.deletions;
+    }
+    
+    // Then load remaining files
+    // ...
+}
+```
+
+## Troubleshooting
+
+<Warning>
+  **Authentication Failed**: Ensure you've completed OAuth flow and tokens are valid. Re-authenticate if needed.
+</Warning>
+
+<Warning>
+  **Merge Conflicts**: Chapi detects conflicts but you must resolve them manually in your code editor.
+</Warning>
+
+<Note>
+  All Git operations use the installed Git CLI. Ensure Git is installed and accessible in your PATH.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Setup" icon="robot" href="/guides/ai-setup">
+    Configure AI features for commit generation and assistance
+  </Card>
+  <Card title="Templates" icon="layer-group" href="/guides/templates">
+    Learn about project templates and customization
+  </Card>
+</CardGroup>

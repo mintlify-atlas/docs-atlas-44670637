@@ -1,0 +1,325 @@
+---
+title: "AI Services"
+description: "Use cases for AI-powered features in Chapi Assistant"
+---
+
+## Overview
+
+The AI Services use cases integrate with AI chat clients (OpenAI, Claude, Gemini) to provide intelligent assistance for development tasks.
+
+## GenerateCommitMessageUseCase
+
+Generates intelligent commit messages based on git diff content using AI.
+
+### Method Signature
+
+```csharp
+public async Task<Result<string>> ExecuteAsync(string diffContent)
+```
+
+<ParamField path="diffContent" type="string" required>
+  The git diff content showing changes to commit
+</ParamField>
+
+<ResponseField name="Result<string>" type="Result<string>">
+  Result containing the generated commit message
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the message was generated successfully
+    </ResponseField>
+    <ResponseField name="Data" type="string">
+      The generated commit message
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new GenerateCommitMessageUseCase(chatClient);
+var diffContent = @"
+--- a/src/Auth/Login.cs
++++ b/src/Auth/Login.cs
+@@ -10,6 +10,7 @@
+ public class LoginService
+ {
++    private readonly ITokenService _tokenService;
+     public async Task<LoginResult> Login(string username, string password)
+     {
+         // Authentication logic
++        var token = await _tokenService.GenerateToken(user);
+     }
+ }";
+
+var result = await useCase.ExecuteAsync(diffContent);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Suggested message: {result.Data}");
+    // Output: "Add token generation to login service"
+}
+```
+
+### How It Works
+
+1. Receives git diff content showing file changes
+2. Sends diff to AI chat client with specialized prompt
+3. AI analyzes the changes and generates a concise commit message
+4. Returns the generated message for review
+
+---
+
+## GenerateSqlQueryUseCase
+
+Generates SQL queries or stored procedure calls based on natural language descriptions.
+
+### Method Signature
+
+```csharp
+public async Task<Result<string>> ExecuteAsync(
+    string description, 
+    string? schema = null, 
+    string? netParams = null
+)
+```
+
+<ParamField path="description" type="string" required>
+  Natural language description of the desired SQL query
+</ParamField>
+
+<ParamField path="schema" type="string">
+  Optional database schema information to help generate accurate queries
+</ParamField>
+
+<ParamField path="netParams" type="string">
+  Optional .NET parameter definitions for stored procedure calls
+</ParamField>
+
+<ResponseField name="Result<string>" type="Result<string>">
+  Result containing the generated SQL query
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the query was generated successfully
+    </ResponseField>
+    <ResponseField name="Data" type="string">
+      The generated SQL query or stored procedure call
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new GenerateSqlQueryUseCase(chatClient);
+
+// Simple query generation
+var result = await useCase.ExecuteAsync(
+    description: "Get all active users created in the last 30 days"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine(result.Data);
+    // Output:
+    // SELECT * FROM Users 
+    // WHERE IsActive = 1 
+    //   AND CreatedDate >= DATEADD(day, -30, GETDATE())
+}
+
+// With schema context
+var schema = @"
+Tables:
+- Users (Id, Username, Email, IsActive, CreatedDate)
+- Orders (Id, UserId, OrderDate, TotalAmount)
+";
+
+var result2 = await useCase.ExecuteAsync(
+    description: "Get users with their total order amount",
+    schema: schema
+);
+
+if (result2.IsSuccess)
+{
+    Console.WriteLine(result2.Data);
+    // Output:
+    // SELECT u.Id, u.Username, u.Email, 
+    //        SUM(o.TotalAmount) as TotalOrders
+    // FROM Users u
+    // LEFT JOIN Orders o ON u.Id = o.UserId
+    // GROUP BY u.Id, u.Username, u.Email
+}
+
+// Stored procedure call with parameters
+var netParams = @"
+int userId
+DateTime startDate
+DateTime endDate
+";
+
+var result3 = await useCase.ExecuteAsync(
+    description: "Call stored procedure to get user orders in date range",
+    schema: schema,
+    netParams: netParams
+);
+```
+
+### Use Cases
+
+- Generate SELECT, INSERT, UPDATE, DELETE queries
+- Create complex JOIN queries
+- Generate stored procedure calls with proper parameters
+- Convert business requirements to SQL
+- Create database-specific queries (supports Sybase and Postgres dialects)
+
+---
+
+## SendChatMessageUseCase
+
+Sends a message to the AI assistant and receives a response.
+
+### Method Signature
+
+```csharp
+public async Task<Result<string>> ExecuteAsync(
+    string userMessage, 
+    string? context = null
+)
+```
+
+<ParamField path="userMessage" type="string" required>
+  The user's message or question
+</ParamField>
+
+<ParamField path="context" type="string">
+  Optional context to provide to the AI (e.g., code snippets, project info)
+</ParamField>
+
+<ResponseField name="Result<string>" type="Result<string>">
+  Result containing the AI assistant's response
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if a response was received
+    </ResponseField>
+    <ResponseField name="Data" type="string">
+      The AI assistant's response text
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new SendChatMessageUseCase(chatClient);
+
+// Simple question
+var result = await useCase.ExecuteAsync(
+    userMessage: "What is the SOLID principle?"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine(result.Data);
+}
+
+// Question with code context
+var code = @"
+public class UserService
+{
+    private readonly DbContext _db;
+    
+    public User GetUser(int id)
+    {
+        return _db.Users.Find(id);
+    }
+}";
+
+var result2 = await useCase.ExecuteAsync(
+    userMessage: "How can I improve this code?",
+    context: $"Here's my current code:\n{code}"
+);
+
+if (result2.IsSuccess)
+{
+    Console.WriteLine(result2.Data);
+    // AI will provide suggestions based on the code context
+}
+
+// Architecture question with project context
+var projectContext = @"
+Project: E-commerce API
+Architecture: Clean Architecture
+Layers: Domain, Application, Infrastructure, API
+Database: PostgreSQL
+";
+
+var result3 = await useCase.ExecuteAsync(
+    userMessage: "Should I put validation in the Domain or Application layer?",
+    context: projectContext
+);
+```
+
+### Features
+
+- General programming questions and answers
+- Code review and improvement suggestions
+- Architecture and design pattern advice
+- Debugging assistance
+- Best practices recommendations
+- Context-aware responses using project/code information
+
+---
+
+## AI Client Configuration
+
+All AI use cases use the `IChatClient` interface from `Microsoft.Extensions.AI`. Chapi supports multiple AI providers:
+
+### Supported Providers
+
+- **OpenAI** (GPT-4, GPT-3.5)
+- **Anthropic Claude** (Claude 3)
+- **Google Gemini**
+
+### Configuration
+
+The AI client is configured during dependency injection:
+
+```csharp
+// Example configuration in DI container
+services.AddSingleton<IChatClient>(provider => 
+{
+    var settings = provider.GetRequiredService<UserSettings>();
+    
+    return settings.AiProvider switch
+    {
+        "OpenAI" => new OpenAiChatClient(settings.OpenAiApiKey),
+        "Claude" => new ClaudeChatClient(settings.ClaudeApiKey),
+        "Gemini" => new GeminiChatClient(settings.GeminiApiKey),
+        _ => throw new InvalidOperationException("No AI provider configured")
+    };
+});
+```
+
+### Usage Pattern
+
+All AI use cases follow a consistent pattern:
+
+1. Validate input parameters
+2. Prepare prompt with context
+3. Send to AI client using `IChatClient.GetResponseAsync()`
+4. Extract response text
+5. Return as `Result<string>`
+
+```csharp
+var messages = new[] { new ChatMessage(ChatRole.User, prompt) };
+var response = await _chatClient.GetResponseAsync(messages);
+var responseText = response.Messages.FirstOrDefault()?.Text;
+```

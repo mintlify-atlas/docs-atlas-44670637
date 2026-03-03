@@ -1,0 +1,755 @@
+---
+title: Infrastructure Layer
+description: External services, repositories, and third-party integrations in Chapi Assistant
+---
+
+The Infrastructure Layer contains implementations of domain interfaces and all external dependencies. It handles persistence, external APIs, file systems, and framework-specific code.
+
+## Layer Overview
+
+**Location**: `~/workspace/source/Chapi/Infrastructure/`
+
+**Responsibilities**:
+- Implement domain repository interfaces
+- Integrate with external services (Git, AI, OAuth)
+- Handle file system operations
+- Manage persistence (settings, cache)
+- Provide platform-specific implementations
+
+**Dependencies**: 
+- ✅ Depends on Domain Layer (implements interfaces)
+- ✅ Can depend on external libraries (LibGit2Sharp, etc.)
+- ❌ No dependencies on Presentation or Application
+
+## Repository Implementations
+
+### Git Repository Implementation
+
+<Expandable title="LibGit2SharpRepository">
+  Primary Git implementation using LibGit2Sharp (embedded Git library).
+
+  ```csharp
+  namespace Chapi.Infrastructure.Git;
+
+  /// <summary>
+  /// Implementation using LibGit2Sharp (standalone, doesn't require Git installed).
+  /// </summary>
+  public partial class LibGit2SharpRepository : IGitRepository
+  {
+      private readonly IGitAuthProviderFactory _authFactory;
+      private readonly ICredentialStorageService _credentialStorage;
+
+      public LibGit2SharpRepository(
+          IGitAuthProviderFactory authFactory,
+          ICredentialStorageService credentialStorage)
+      {
+          _authFactory = authFactory;
+          _credentialStorage = credentialStorage;
+      }
+
+      // Get credentials for remote operations
+      private async Task<Credentials?> GetCredentialsAsync(string remoteUrl)
+      {
+          var provider = _authFactory.DetectProviderFromUrl(remoteUrl);
+          if (provider == GitProvider.Unknown) return null;
+
+          var cred = await _credentialStorage.GetCredentialAsync(provider.ToString());
+          if (!cred.HasValue) return null;
+
+          return new UsernamePasswordCredentials
+          {
+              Username = string.IsNullOrEmpty(cred.Value.username) 
+                  ? "oauth2" 
+                  : cred.Value.username,
+              Password = cred.Value.token
+          };
+      }
+
+      public async Task<Result<GitCommit>> CommitAsync(
+          string projectPath, 
+          string message, 
+          IEnumerable<string> files)
+      {
+          return await Task.Run(() =>
+          {
+              try
+              {
+                  using var repo = new Repository(projectPath);
+
+                  // Stage files
+                  Commands.Stage(repo, files);
+
+                  // Create signature
+                  var signature = repo.Config.BuildSignature(DateTimeOffset.Now);
+                  if (signature == null)
+                      return Result<GitCommit>.Fail(
+                          "No se ha configurado usuario ni correo en git config");
+
+                  // Commit
+                  var commit = repo.Commit(message, signature, signature);
+
+                  return Result<GitCommit>.Success(new GitCommit
+                  {
+                      Hash = commit.Sha,
+                      Message = commit.MessageShort,
+                      Author = commit.Author.Name,
+                      Date = commit.Author.When.DateTime,
+                      RelativeDate = TimeHelper.GetRelativeDate(commit.Author.When.DateTime)
+                  });
+              }
+              catch (Exception ex)
+              {
+                  return Result<GitCommit>.Fail($"Error al hacer commit: {ex.Message}");
+              }
+          });
+      }
+
+      public async Task<IEnumerable<FileChange>> GetChangesAsync(string projectPath)
+      {
+          return await Task.Run(() =>
+          {
+              try
+              {
+                  using var repo = new Repository(projectPath);
+                  var changes = new List<FileChange>();
+
+                  var statusOptions = new StatusOptions { IncludeIgnored = false };
+                  var repoStatus = repo.RetrieveStatus(statusOptions);
+
+                  foreach (var item in repoStatus)
+                  {
+                      ChangeStatus status = ChangeStatus.Modified;
+                      bool isKnown = false;
+
+                      if (item.State.HasFlag(FileStatus.NewInIndex) || 
+                          item.State.HasFlag(FileStatus.NewInWorkdir))
+                      {
+                          status = ChangeStatus.Added;
+                          isKnown = true;
+                      }
+                      else if (item.State.HasFlag(FileStatus.ModifiedInIndex) || 
+                               item.State.HasFlag(FileStatus.ModifiedInWorkdir))
+                      {
+                          status = ChangeStatus.Modified;
+                          isKnown = true;
+                      }
+                      else if (item.State.HasFlag(FileStatus.DeletedFromIndex) || 
+                               item.State.HasFlag(FileStatus.DeletedFromWorkdir))
+                      {
+                          status = ChangeStatus.Deleted;
+                          isKnown = true;
+                      }
+
+                      if (isKnown && !item.State.HasFlag(FileStatus.Ignored))
+                      {
+                          changes.Add(new FileChange
+                          {
+                              FilePath = item.FilePath,
+                              Status = status,
+                              Additions = 0,  // Calculated on-demand
+                              Deletions = 0   // Calculated on-demand
+                          });
+                      }
+                  }
+
+                  return changes;
+              }
+              catch
+              {
+                  return Enumerable.Empty<FileChange>();
+              }
+          });
+      }
+  }
+  ```
+
+  **Key Features**:
+  - Embedded Git (no external Git installation required)
+  - Async operations using `Task.Run`
+  - Credential management for remote operations
+  - On-demand diff calculation for performance
+
+  **Source**: `Infrastructure/Git/LibGit2SharpRepository.cs`
+</Expandable>
+
+<Expandable title="ProjectSettingsRepository">
+  Simple file-based project persistence.
+
+  ```csharp
+  namespace Chapi.Infrastructure.Persistence.Settings;
+
+  public class ProjectSettingsRepository : IProjectRepository
+  {
+      public Task<IEnumerable<Project>> GetAllProjectsAsync()
+      {
+          var paths = ProjectSettings.LoadProjects();
+          var projects = paths.Select(p => new Project
+          {
+              FullPath = p,
+              Name = Path.GetFileName(p)
+          });
+          return Task.FromResult(projects);
+      }
+
+      public Task<Project?> GetProjectAsync(string path)
+      {
+          var paths = ProjectSettings.LoadProjects();
+          var p = paths.FirstOrDefault(x => x == path);
+          if (p == null) return Task.FromResult<Project?>(null);
+
+          return Task.FromResult<Project?>(new Project
+          {
+              FullPath = p,
+              Name = Path.GetFileName(p)
+          });
+      }
+
+      public Task AddProjectAsync(string path)
+      {
+          ProjectSettings.AddProject(path);
+          return Task.CompletedTask;
+      }
+
+      public Task RemoveProjectAsync(string path)
+      {
+          ProjectSettings.RemoveProject(path);
+          return Task.CompletedTask;
+      }
+  }
+  ```
+
+  **Source**: `Infrastructure/Persistence/Settings/ProjectSettingsRepository.cs`
+</Expandable>
+
+## External Service Integrations
+
+### AI Chat Clients
+
+<Expandable title="GeminiChatClient">
+  Google Gemini AI integration with fallback models and streaming.
+
+  ```csharp
+  namespace Chapi.Infrastructure.AI;
+
+  public class GeminiChatClient : IChatClient
+  {
+      private readonly string _apiKey;
+      private readonly string[] _models = new[]
+      {
+          "gemini-3.0-flash",
+          "gemini-2.5-flash",
+          "gemma-3",
+      };
+
+      public GeminiChatClient(string apiKey)
+      {
+          _apiKey = apiKey;
+      }
+
+      public async Task<ChatResponse> GetResponseAsync(
+          IEnumerable<ChatMessage> chatMessages, 
+          ChatOptions? options = null, 
+          CancellationToken cancellationToken = default)
+      {
+          var prompt = BuildPrompt(chatMessages);
+          var lastError = string.Empty;
+
+          // Try each model with fallback
+          foreach (var modelId in _models)
+          {
+              try
+              {
+                  // Timeout per model (35s max)
+                  using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+                      cancellationToken);
+                  cts.CancelAfter(TimeSpan.FromSeconds(35));
+
+                  var googleAI = new GoogleAI(apiKey: _apiKey);
+                  var model = googleAI.GenerativeModel(model: modelId);
+
+                  // Use streaming to avoid HTTP/2 connection hanging
+                  var fullResponse = new StringBuilder();
+
+                  await foreach (var chunk in model.GenerateContentStream(
+                      prompt, 
+                      cancellationToken: cts.Token))
+                  {
+                      if (chunk.Text != null)
+                          fullResponse.Append(chunk.Text);
+                  }
+
+                  var text = CleanResponse(fullResponse.ToString());
+                  if (string.IsNullOrWhiteSpace(text)) continue;
+
+                  return new ChatResponse(
+                      new[] { new ChatMessage(ChatRole.Assistant, text) });
+              }
+              catch (OperationCanceledException)
+              {
+                  if (cancellationToken.IsCancellationRequested) throw;
+                  lastError = $"Timeout con modelo {modelId}";
+              }
+              catch (Exception ex)
+              {
+                  lastError = HandleError(ex, modelId);
+              }
+          }
+
+          throw new Exception(
+              $"Fallaron todos los modelos de Gemini. Último error: {lastError}");
+      }
+
+      private string CleanResponse(string text)
+      {
+          if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+          text = text.Trim();
+
+          // Remove code blocks if present
+          if (text.StartsWith("```"))
+          {
+              int start = text.IndexOf("{");
+              int end = text.LastIndexOf("}");
+              if (start >= 0 && end > start)
+                  text = text.Substring(start, end - start + 1);
+          }
+          return text;
+      }
+  }
+  ```
+
+  **Features**:
+  - Model fallback strategy
+  - Timeout protection
+  - Streaming support
+  - Response cleaning
+
+  **Source**: `Infrastructure/AI/GeminiChatClient.cs`
+</Expandable>
+
+### Authentication Providers
+
+<Expandable title="GitHubOAuthProvider">
+  GitHub OAuth device flow authentication.
+
+  ```csharp
+  namespace Chapi.Infrastructure.Services.Auth;
+
+  public class GitHubOAuthProvider : IGitAuthProvider
+  {
+      private readonly ICredentialStorageService _credentialStorage;
+      private readonly HttpClient _httpClient;
+
+      public async Task<Result<GitCredential>> AuthenticateAsync()
+      {
+          try
+          {
+              // 1. Request device code
+              var deviceCodeResponse = await RequestDeviceCodeAsync();
+
+              // 2. Show user code and open browser
+              var userCode = deviceCodeResponse.UserCode;
+              var verificationUri = deviceCodeResponse.VerificationUri;
+              
+              Process.Start(new ProcessStartInfo
+              {
+                  FileName = verificationUri,
+                  UseShellExecute = true
+              });
+
+              // 3. Poll for token
+              var tokenResponse = await PollForTokenAsync(
+                  deviceCodeResponse.DeviceCode,
+                  deviceCodeResponse.Interval);
+
+              // 4. Get user info
+              var userInfo = await GetUserInfoAsync(tokenResponse.AccessToken);
+
+              // 5. Store credentials
+              var credential = new GitCredential
+              {
+                  Username = userInfo.Login,
+                  AccessToken = tokenResponse.AccessToken,
+                  RefreshToken = tokenResponse.RefreshToken,
+                  ExpiresAt = DateTime.Now.AddSeconds(tokenResponse.ExpiresIn)
+              };
+
+              await _credentialStorage.StoreCredentialAsync(
+                  GitProvider.GitHub.ToString(), 
+                  credential.Username, 
+                  credential.AccessToken);
+
+              return Result<GitCredential>.Success(credential);
+          }
+          catch (Exception ex)
+          {
+              return Result<GitCredential>.Fail($"Error de autenticación: {ex.Message}");
+          }
+      }
+
+      public async Task<Result<GitCredential>> RefreshTokenAsync()
+      {
+          // Implement token refresh logic
+      }
+  }
+  ```
+
+  **Source**: `Infrastructure/Services/Auth/GitHubOAuthProvider.cs`
+</Expandable>
+
+### Workspace Service
+
+<Expandable title="WorkspaceService">
+  Manages workspace data persistence with per-project storage.
+
+  ```csharp
+  namespace Chapi.Infrastructure.Services;
+
+  public class WorkspaceService : IWorkspaceService
+  {
+      private readonly string _appDataPath;
+      private readonly IServiceProvider _serviceProvider;
+
+      public WorkspaceService(IServiceProvider serviceProvider)
+      {
+          _serviceProvider = serviceProvider;
+          _appDataPath = Path.Combine(
+              Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+              "ChapiAssistant",
+              "Workspaces");
+
+          if (!Directory.Exists(_appDataPath))
+              Directory.CreateDirectory(_appDataPath);
+      }
+
+      private string GetProjectStoragePath(string projectPath)
+      {
+          // Use MD5 hash of project path for unique folder
+          using var md5 = MD5.Create();
+          var hash = BitConverter.ToString(
+              md5.ComputeHash(Encoding.UTF8.GetBytes(projectPath)))
+              .Replace("-", "");
+
+          var projectName = new DirectoryInfo(projectPath).Name;
+          var folderName = $"{hash}_{projectName}";
+
+          var projectStoragePath = Path.Combine(_appDataPath, folderName);
+
+          if (!Directory.Exists(projectStoragePath))
+              Directory.CreateDirectory(projectStoragePath);
+
+          return projectStoragePath;
+      }
+
+      public async Task<Result<WorkspaceData>> LoadWorkspaceAsync(string projectPath)
+      {
+          try
+          {
+              var storagePath = GetProjectStoragePath(projectPath);
+              var metadataPath = Path.Combine(storagePath, "metadata.json");
+              var tasksPath = Path.Combine(storagePath, "tasks");
+
+              var data = new WorkspaceData { ProjectPath = projectPath };
+
+              // Load metadata
+              if (File.Exists(metadataPath))
+              {
+                  var json = await File.ReadAllTextAsync(metadataPath);
+                  var loadedData = JsonSerializer.Deserialize<WorkspaceData>(json);
+                  if (loadedData != null)
+                  {
+                      data.SessionNotes = loadedData.SessionNotes;
+                      data.DeploymentQueue = loadedData.DeploymentQueue;
+                  }
+              }
+
+              // Load tasks
+              if (Directory.Exists(tasksPath))
+              {
+                  var taskFiles = Directory.GetFiles(tasksPath, "*.json");
+                  foreach (var file in taskFiles)
+                  {
+                      var taskJson = await File.ReadAllTextAsync(file);
+                      var task = JsonSerializer.Deserialize<WorkspaceTask>(taskJson);
+                      if (task != null)
+                          data.Tasks.Add(task);
+                  }
+              }
+
+              return Result<WorkspaceData>.Success(data);
+          }
+          catch (Exception ex)
+          {
+              return Result<WorkspaceData>.Fail($"Error al cargar workspace: {ex.Message}");
+          }
+      }
+
+      public async Task<Result<string>> GetRandomQuoteAsync()
+      {
+          // Try cache first, then generate with AI
+          var fallbackTips = new List<string>
+          {
+              "El código limpio es como un buen chiste: si tienes que explicarlo, es malo.",
+              "Primero resuelve el problema. Luego, escribe el código."
+          };
+
+          // Trigger background AI refresh
+          _ = Task.Run(() => RefreshDailyTipsAsync());
+
+          var rnd = new Random();
+          return Result<string>.Success(fallbackTips[rnd.Next(fallbackTips.Count)]);
+      }
+  }
+  ```
+
+  **Features**:
+  - Per-project isolated storage
+  - JSON-based persistence
+  - Individual task files for performance
+  - AI-generated daily tips with caching
+
+  **Source**: `Infrastructure/Services/WorkspaceService.cs`
+</Expandable>
+
+## Code Generation (Roslyn)
+
+Chapi uses Roslyn for code generation and manipulation.
+
+<Expandable title="AddApiControllerMethod">
+  Generates API controllers using Roslyn syntax trees.
+
+  ```csharp
+  namespace Chapi.Infrastructure.Roslyn;
+
+  public class AddApiControllerMethod
+  {
+      public static async Task<Result> ExecuteAsync(
+          string projectPath,
+          string controllerName,
+          string route)
+      {
+          try
+          {
+              var apiDirectory = FindApiDirectory.Execute(projectPath);
+              if (apiDirectory == null)
+                  return Result.Fail("No se encontró directorio API");
+
+              var controllersPath = Path.Combine(apiDirectory, "Controllers");
+              if (!Directory.Exists(controllersPath))
+                  Directory.CreateDirectory(controllersPath);
+
+              var fileName = $"{controllerName}Controller.cs";
+              var filePath = Path.Combine(controllersPath, fileName);
+
+              if (File.Exists(filePath))
+                  return Result.Fail($"El controlador {controllerName} ya existe");
+
+              // Build syntax tree
+              var compilationUnit = SyntaxFactory.CompilationUnit()
+                  .AddUsings(
+                      SyntaxFactory.UsingDirective(
+                          SyntaxFactory.ParseName("Microsoft.AspNetCore.Mvc")),
+                      SyntaxFactory.UsingDirective(
+                          SyntaxFactory.ParseName("System.Threading.Tasks")))
+                  .AddMembers(
+                      SyntaxFactory.NamespaceDeclaration(
+                          SyntaxFactory.ParseName($"{GetRootNamespace(projectPath)}.API.Controllers"))
+                      .AddMembers(
+                          CreateControllerClass(controllerName, route)));
+
+              var code = compilationUnit.NormalizeWhitespace().ToFullString();
+              await File.WriteAllTextAsync(filePath, code);
+
+              return Result.Success();
+          }
+          catch (Exception ex)
+          {
+              return Result.Fail($"Error al generar controlador: {ex.Message}");
+          }
+      }
+
+      private static ClassDeclarationSyntax CreateControllerClass(
+          string name, 
+          string route)
+      {
+          return SyntaxFactory.ClassDeclaration(name + "Controller")
+              .AddModifiers(
+                  SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+              .AddAttributeLists(
+                  SyntaxFactory.AttributeList(
+                      SyntaxFactory.SingletonSeparatedList(
+                          SyntaxFactory.Attribute(
+                              SyntaxFactory.ParseName("ApiController")))))
+              .AddBaseListTypes(
+                  SyntaxFactory.SimpleBaseType(
+                      SyntaxFactory.ParseTypeName("ControllerBase")));
+      }
+  }
+  ```
+
+  **Source**: `Infrastructure/Roslyn/AddApiControllerMethod.cs`
+</Expandable>
+
+## Platform-Specific Services
+
+### Windows Credential Storage
+
+```csharp
+public class WindowsCredentialStorageService : ICredentialStorageService
+{
+    public async Task StoreCredentialAsync(string key, string username, string token)
+    {
+        var credential = new PasswordCredential
+        {
+            Resource = $"ChapiAssistant_{key}",
+            UserName = username,
+            Password = token
+        };
+
+        // Use Windows Credential Manager
+        credential.Save();
+        await Task.CompletedTask;
+    }
+
+    public async Task<(string username, string token)?> GetCredentialAsync(string key)
+    {
+        try
+        {
+            var credential = PasswordVault.Retrieve($"ChapiAssistant_{key}");
+            return (credential.UserName, credential.Password);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+```
+
+**Source**: `Infrastructure/Services/WindowsCredentialStorageService.cs`
+
+## Infrastructure Components
+
+<CardGroup cols={2}>
+  <Card title="Git Integration" icon="git">
+    - LibGit2SharpRepository
+    - GitChangeWatcher
+    - GitChangesCache
+  </Card>
+  <Card title="AI Clients" icon="robot">
+    - GeminiChatClient
+    - OpenAiChatClient
+    - ClaudeChatClient
+  </Card>
+  <Card title="Authentication" icon="key">
+    - GitHubOAuthProvider
+    - GitLabOAuthProvider
+    - GitAuthProviderFactory
+  </Card>
+  <Card title="Services" icon="cog">
+    - WorkspaceService
+    - NotificationService
+    - TemplateService
+  </Card>
+</CardGroup>
+
+## Performance Optimizations
+
+<AccordionGroup>
+  <Accordion title="Git Changes Caching">
+    ```csharp
+    public class GitChangesCache
+    {
+        private readonly Dictionary<string, CachedChanges> _cache = new();
+
+        public bool TryGetChanges(
+            string projectPath, 
+            out List<FileChange> changes,
+            out int additions,
+            out int deletions)
+        {
+            if (_cache.TryGetValue(projectPath, out var cached))
+            {
+                changes = cached.Changes;
+                additions = cached.Additions;
+                deletions = cached.Deletions;
+                return true;
+            }
+
+            changes = null;
+            additions = 0;
+            deletions = 0;
+            return false;
+        }
+
+        public void Invalidate(string projectPath)
+        {
+            _cache.Remove(projectPath);
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="On-Demand Diff Calculation">
+    Instead of calculating diffs for all files upfront:
+    ```csharp
+    var change = new FileChange
+    {
+        FilePath = item.FilePath,
+        Status = status,
+        Additions = 0,  // Calculated on-demand when file selected
+        Deletions = 0   // Calculated on-demand when file selected
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Background Task Processing">
+    ```csharp
+    // Load metadata in parallel
+    _ = Task.Run(async () =>
+    {
+        try { await LoadMetadataAsync(); } catch { }
+    }, token);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Testing Infrastructure
+
+```csharp
+[Test]
+public async Task LibGit2SharpRepository_CommitAsync_CreatesCommit()
+{
+    // Arrange
+    var tempPath = CreateTemporaryRepository();
+    var mockAuth = new Mock<IGitAuthProviderFactory>();
+    var mockStorage = new Mock<ICredentialStorageService>();
+    var repo = new LibGit2SharpRepository(mockAuth.Object, mockStorage.Object);
+
+    // Act
+    var result = await repo.CommitAsync(
+        tempPath, 
+        "Test commit", 
+        new[] { "file.txt" });
+
+    // Assert
+    Assert.IsTrue(result.IsSuccess);
+    Assert.AreEqual("Test commit", result.Data.Message);
+
+    // Cleanup
+    Directory.Delete(tempPath, true);
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={3}>
+  <Card title="Domain Layer" href="/architecture/domain-layer" icon="cube">
+    Interfaces being implemented
+  </Card>
+  <Card title="Application Layer" href="/architecture/application-layer" icon="layer-group">
+    Services consuming infrastructure
+  </Card>
+  <Card title="Dependency Injection" href="/getting-started/configuration" icon="plug">
+    Service registration
+  </Card>
+</CardGroup>

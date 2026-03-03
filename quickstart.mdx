@@ -1,80 +1,367 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Chapi Assistant in minutes - from installation to your first project
 ---
 
-## Get started in three steps
+Create your first .NET project with Chapi Assistant and experience the power of automated scaffolding, code generation, and AI assistance.
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+## Prerequisites
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Before starting, ensure you have completed the [Installation](/installation) guide and configured Git with your user identity.
 </Note>
+
+<Steps>
+  <Step title="Verify Installation">
+    Open Chapi Assistant and verify it launches successfully. The main window should display with tabs for Changes, History, Assistant, and Releases.
+  </Step>
+  
+  <Step title="Configure Git Identity (if needed)">
+    If you haven't configured Git yet:
+    
+    ```bash
+    git config --global user.name "Your Name"
+    git config --global user.email "your.email@example.com"
+    ```
+  </Step>
+</Steps>
+
+## Create Your First Project
+
+<Steps>
+  <Step title="Open Project Creation Dialog">
+    In Chapi Assistant, navigate to the workspace panel and click **New Project** or use the project creation button in the toolbar.
+  </Step>
+  
+  <Step title="Configure Project Details">
+    Fill in the project creation form:
+    
+    <ParamField path="Project Name" type="string" required>
+      Name for your new project (e.g., "MyApi")
+    </ParamField>
+    
+    <ParamField path="Parent Directory" type="string" required>
+      Directory where the project will be created (e.g., `C:\Projects`)
+    </ParamField>
+    
+    <ParamField path="Template URL" type="string" required>
+      Git repository URL for the base template. Default is often pre-configured (e.g., `https://gitlab.com/net-core2/api-base.git`)
+    </ParamField>
+    
+    <ParamField path="Remote URL" type="string" optional>
+      Optional: Your new Git remote repository URL (e.g., GitHub or GitLab repo)
+    </ParamField>
+  </Step>
+  
+  <Step title="Watch the Magic Happen">
+    Click **Create Project** and watch the progress log. Chapi will:
+    
+    ```
+    Clonando repositorio base...
+    Limpiando metadatos de Git...
+    Personalizando estructura del proyecto...
+    Inicializando nuevo repositorio Git...
+    Asociando repositorio remoto...
+    Registrando proyecto en Chapi...
+    ```
+    
+    <Accordion title="What's happening under the hood?">
+      The `CreateProjectUseCase.cs` executes these operations:
+      
+      ```csharp
+      // 1. Clone the template repository
+      var cloneResult = await _gitRepository.CloneAsync(request.TemplateUrl, targetPath);
+      
+      // 2. Remove original .git folder
+      DeleteDirectory(Path.Combine(targetPath, ".git"));
+      
+      // 3. Rename project structure
+      await _templateService.RenameTemplateAsync(targetPath, oldName, request.ProjectName, onProgress);
+      
+      // 4. Initialize new Git repository
+      await _gitRepository.InitAsync(targetPath);
+      
+      // 5. Add remote (if provided)
+      if (!string.IsNullOrWhiteSpace(request.RemoteUrl))
+          await _gitRepository.AddRemoteAsync(targetPath, "origin", request.RemoteUrl);
+      
+      // 6. Register in workspace
+      await _projectRepository.AddProjectAsync(targetPath);
+      ```
+      
+      Source: `CreateProjectUseCase.cs:30-73`
+    </Accordion>
+  </Step>
+  
+  <Step title="Explore Your New Project">
+    Your project is now ready! The structure should look like this:
+    
+    ```
+    MyApi/
+    ├── MyApi.sln
+    ├── MyApi/
+    │   ├── Controllers/ (or Endpoints/ for Ardalis)
+    │   ├── Config/
+    │   │   └── DependencyInjection.cs
+    │   └── MyApi.csproj
+    ├── Application/
+    │   └── Application.csproj
+    ├── Domain/
+    │   └── Domain.csproj
+    └── Infrastructure/
+        ├── Postgres/ (or Sybase/)
+        └── Infrastructure.csproj
+    ```
+  </Step>
+</Steps>
+
+## Make Your First Commit
+
+<Steps>
+  <Step title="View Changes">
+    Switch to the **Changes** tab in Chapi Assistant. You'll see all the renamed files ready to commit.
+  </Step>
+  
+  <Step title="Generate AI Commit Message">
+    Instead of writing a commit message manually, click the **AI Generate** button. Chapi will analyze your changes and create a meaningful commit message:
+    
+    ```
+    Initial project setup: Create MyApi from template
+    
+    - Initialize Clean Architecture structure
+    - Configure dependency injection
+    - Set up API project with controllers
+    ```
+    
+    <Tip>
+      The AI analyzes the actual Git diff to generate context-aware commit messages. This feature uses your configured AI provider (Gemini, OpenAI, or Claude).
+    </Tip>
+  </Step>
+  
+  <Step title="Commit Changes">
+    Review the generated message, make any adjustments, and click **Commit**. Your first commit is now in the repository!
+  </Step>
+</Steps>
+
+## Generate Your First Module
+
+Now let's add a complete CRUD module with Chapi's code generation:
+
+<Steps>
+  <Step title="Open Code Generation">
+    Click the **Assistant** tab and select **Generate Module** or use the module generator in the toolbar.
+  </Step>
+  
+  <Step title="Configure Module">
+    Enter module details:
+    
+    - **Module Name**: `Products`
+    - **Database**: `Postgres` (or `Sybase`)
+    
+    Click **Generate**
+  </Step>
+  
+  <Step title="Review Generated Code">
+    Chapi generates code across all Clean Architecture layers:
+    
+    **API Layer** (`Controllers/Products/` or `Endpoints/Products/`):
+    ```csharp
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ProductsController : ControllerBase
+    {
+        private readonly IProductsApplication _application;
+        
+        [HttpGet]
+        public async Task<IActionResult> Get()
+        {
+            var result = await _application.Get();
+            return Ok(result);
+        }
+        
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var result = await _application.GetById(id);
+            return Ok(result);
+        }
+        
+        [HttpPost]
+        public async Task<IActionResult> Post([FromBody] ProductDto dto)
+        {
+            var result = await _application.Post(dto);
+            return Ok(result);
+        }
+    }
+    ```
+    
+    **Application Layer**, **Domain Layer**, and **Infrastructure Layer** are also generated with complete CRUD implementations.
+    
+    <Accordion title="What gets generated?">
+      For each module, Chapi creates:
+      
+      - **3 API endpoints**: Get (list), GetById, Post
+      - **Application Use Cases**: Business logic for each operation
+      - **Domain Entities**: Your domain model
+      - **Infrastructure Repositories**: Database access layer
+      - **Dependency Injection**: Auto-configured in `DependencyInjection.cs`
+      
+      Source: `ModuleGeneratorService.cs:22-95`
+    </Accordion>
+  </Step>
+  
+  <Step title="Commit Generated Code">
+    Go back to the **Changes** tab, generate another AI commit message for the new module, and commit:
+    
+    ```
+    Add Products module with CRUD operations
+    
+    - Generate API controller with Get, GetById, and Post endpoints
+    - Create application use cases
+    - Add domain entities and repository interfaces
+    - Implement infrastructure repository
+    - Configure dependency injection
+    ```
+  </Step>
+</Steps>
+
+## Push to Remote Repository
+
+<Steps>
+  <Step title="Configure Authentication">
+    If you provided a remote URL during project creation, you need to authenticate:
+    
+    <Tabs>
+      <Tab title="GitHub">
+        1. Go to **Settings** > **Git Authentication**
+        2. Click **Login with GitHub**
+        3. Complete OAuth flow in your browser
+        4. Tokens are securely stored in Windows Credential Manager
+      </Tab>
+      
+      <Tab title="GitLab">
+        1. Go to **Settings** > **Git Authentication**
+        2. Click **Login with GitLab**
+        3. Complete OAuth flow in your browser
+        4. Refresh tokens are automatically managed
+      </Tab>
+    </Tabs>
+    
+    See [Git Authentication](/configuration/git-authentication) for detailed setup.
+  </Step>
+  
+  <Step title="Push Changes">
+    In the **Changes** tab, click the **Push** button. Chapi will push all commits to your remote repository.
+    
+    ```
+    Pushing to origin/main...
+    ✓ Successfully pushed 2 commits
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+You've successfully created a project, generated code, and pushed to Git! Explore these advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Git Workflow" icon="code-branch" href="/guides/git-workflow">
+    Master branching, stashing, and conflict resolution
+  </Card>
+  
+  <Card title="AI Assistant" icon="robot" href="/guides/ai-setup">
+    Configure AI providers and use the conversational assistant
+  </Card>
+  
+  <Card title="Module Generation" icon="layer-group" href="/guides/generating-modules">
+    Learn advanced code generation techniques
+  </Card>
+  
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand the Clean Architecture implementation
+  </Card>
+</CardGroup>
+
+## Common Workflows
+
+<AccordionGroup>
+  <Accordion title="Create a feature branch">
+    1. Go to **Changes** tab
+    2. Click the branch dropdown
+    3. Click **New Branch**
+    4. Enter branch name (e.g., `feature/add-authentication`)
+    5. Start working on your feature
+  </Accordion>
+  
+  <Accordion title="Generate multiple modules at once">
+    In the module generator, enter multiple module names separated by semicolons:
+    
+    ```
+    Products;Orders;Customers
+    ```
+    
+    Chapi will generate all three modules in one operation.
+  </Accordion>
+  
+  <Accordion title="Rollback generated code">
+    If code generation doesn't produce the desired result:
+    
+    1. Open the **Rollback** view
+    2. Select the transaction to rollback
+    3. Click **Execute Rollback**
+    
+    All files modified in that transaction are restored to their previous state.
+  </Accordion>
+  
+  <Accordion title="Switch between projects">
+    1. Click the **Workspace** dropdown in the toolbar
+    2. Select another project
+    3. Chapi switches context immediately
+    
+    All Git operations, code generation, and AI context now target the selected project.
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+  **Keyboard shortcuts**: Press `Ctrl+K` to open the command palette for quick access to all features.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Project creation fails with 'Directory already exists'">
+    The target directory already contains a folder with your project name. Either:
+    - Choose a different project name
+    - Delete the existing directory
+    - Select a different parent directory
+  </Accordion>
+  
+  <Accordion title="Git authentication fails">
+    Ensure you've completed the OAuth flow:
+    1. Go to Settings > Git Authentication
+    2. Click **Logout** then **Login** again
+    3. Complete the browser OAuth flow
+    4. Verify credentials in Windows Credential Manager
+  </Accordion>
+  
+  <Accordion title="AI commit message generation fails">
+    Check your AI provider configuration:
+    1. Go to Settings > AI Providers
+    2. Verify your API key is entered correctly
+    3. Check your API quota/billing status
+    4. Try switching to a different provider (Gemini, OpenAI, or Claude)
+    
+    See [AI Setup Guide](/guides/ai-setup) for detailed configuration.
+  </Accordion>
+  
+  <Accordion title="Module generation produces incorrect code">
+    1. Check that Chapi correctly detected your architecture (Ardalis vs Classic)
+    2. Verify your project structure matches the expected layout
+    3. Use the **Rollback** feature to undo the generation
+    4. Try generating a single operation instead of a full module
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+  For more detailed guides, explore the [Features](/features/project-creation) and [Guides](/guides/creating-projects) sections.
+</Info>

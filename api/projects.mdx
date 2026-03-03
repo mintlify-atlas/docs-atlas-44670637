@@ -1,0 +1,329 @@
+---
+title: "Project Management"
+description: "Use cases for managing projects in Chapi Assistant"
+---
+
+## Overview
+
+The Project Management use cases handle creating, adding, cloning, switching, and removing projects in Chapi Assistant.
+
+## AddProjectUseCase
+
+Adds an existing project directory to Chapi Assistant's workspace.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The absolute path to the project directory to add
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  A Result object indicating success or failure
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the project was added successfully
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var addProjectUseCase = new AddProjectUseCase(projectRepository);
+var result = await addProjectUseCase.ExecuteAsync("/path/to/project");
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Project added successfully");
+}
+else
+{
+    Console.WriteLine($"Error: {result.Error}");
+}
+```
+
+---
+
+## CreateProjectUseCase
+
+Creates a new project from a template repository, renaming files and initializing Git.
+
+### Request Model
+
+```csharp
+public record CreateProjectRequest(
+    string ProjectName,
+    string ParentDirectory,
+    string TemplateUrl,
+    string RemoteUrl = null
+);
+```
+
+### Method Signature
+
+```csharp
+public async Task<Result<string>> ExecuteAsync(
+    CreateProjectRequest request, 
+    Action<string> onProgress = null
+)
+```
+
+<ParamField path="request" type="CreateProjectRequest" required>
+  Configuration for the new project
+  <Expandable title="properties">
+    <ParamField path="ProjectName" type="string" required>
+      Name for the new project
+    </ParamField>
+    <ParamField path="ParentDirectory" type="string" required>
+      Directory where the project will be created
+    </ParamField>
+    <ParamField path="TemplateUrl" type="string" required>
+      Git repository URL of the template to clone
+    </ParamField>
+    <ParamField path="RemoteUrl" type="string">
+      Optional remote repository URL to associate with the project
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="onProgress" type="Action<string>">
+  Optional callback for progress updates during project creation
+</ParamField>
+
+<ResponseField name="Result<string>" type="Result<string>">
+  Result containing the path to the created project
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the project was created successfully
+    </ResponseField>
+    <ResponseField name="Data" type="string">
+      The full path to the created project
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var createProjectUseCase = new CreateProjectUseCase(
+    gitRepository, 
+    templateService, 
+    projectRepository
+);
+
+var request = new CreateProjectRequest(
+    ProjectName: "MyNewApp",
+    ParentDirectory: "C:\\Projects",
+    TemplateUrl: "https://github.com/template/clean-architecture",
+    RemoteUrl: "https://github.com/myorg/mynewapp"
+);
+
+var result = await createProjectUseCase.ExecuteAsync(
+    request, 
+    progress => Console.WriteLine(progress)
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Project created at: {result.Data}");
+}
+```
+
+### Process Flow
+
+1. Clones the template repository
+2. Removes original `.git` folder
+3. Renames files and directories to match the new project name
+4. Initializes a new Git repository
+5. Associates remote repository if provided
+6. Registers the project in Chapi
+
+---
+
+## CloneProjectUseCase
+
+Clones a Git repository and adds it to Chapi's workspace.
+
+### Method Signature
+
+```csharp
+public async Task<Result<string>> ExecuteAsync(string repoUrl, string parentDirectory)
+```
+
+<ParamField path="repoUrl" type="string" required>
+  The Git repository URL to clone
+</ParamField>
+
+<ParamField path="parentDirectory" type="string" required>
+  The directory where the repository will be cloned
+</ParamField>
+
+<ResponseField name="Result<string>" type="Result<string>">
+  Result containing the path to the cloned project
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if cloning was successful
+    </ResponseField>
+    <ResponseField name="Data" type="string">
+      The full path to the cloned project
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var cloneProjectUseCase = new CloneProjectUseCase(gitRepository, projectRepository);
+var result = await cloneProjectUseCase.ExecuteAsync(
+    "https://github.com/user/repo.git",
+    "C:\\Projects"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Project cloned to: {result.Data}");
+}
+```
+
+---
+
+## LoadProjectsUseCase
+
+Retrieves all projects registered in Chapi Assistant.
+
+### Method Signature
+
+```csharp
+public async Task<Result<IEnumerable<Project>>> ExecuteAsync()
+```
+
+<ResponseField name="Result<IEnumerable<Project>>" type="Result<IEnumerable<Project>>">
+  Result containing the list of projects
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if projects were loaded successfully
+    </ResponseField>
+    <ResponseField name="Data" type="IEnumerable<Project>">
+      Collection of Project entities
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Project Entity
+
+```csharp
+public class Project
+{
+    public string FullPath { get; set; }
+    public string Name { get; set; }
+    public string CurrentBranch { get; set; }
+    public int AheadCount { get; set; }
+    public int BehindCount { get; set; }
+}
+```
+
+### Example Usage
+
+```csharp
+var loadProjectsUseCase = new LoadProjectsUseCase(projectRepository);
+var result = await loadProjectsUseCase.ExecuteAsync();
+
+if (result.IsSuccess)
+{
+    foreach (var project in result.Data)
+    {
+        Console.WriteLine($"{project.Name} - {project.CurrentBranch}");
+    }
+}
+```
+
+---
+
+## RemoveProjectUseCase
+
+Removes a project from Chapi's workspace (does not delete files).
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The path of the project to remove from the workspace
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  A Result object indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var removeProjectUseCase = new RemoveProjectUseCase(projectRepository);
+var result = await removeProjectUseCase.ExecuteAsync("/path/to/project");
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Project removed from workspace");
+}
+```
+
+---
+
+## SwitchProjectUseCase
+
+Switches the active project in Chapi Assistant.
+
+### Method Signature
+
+```csharp
+public async Task<Result<Project>> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  The path of the project to switch to
+</ParamField>
+
+<ResponseField name="Result<Project>" type="Result<Project>">
+  Result containing the switched project
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the switch was successful
+    </ResponseField>
+    <ResponseField name="Data" type="Project">
+      The Project entity that was switched to
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var switchProjectUseCase = new SwitchProjectUseCase(projectRepository);
+var result = await switchProjectUseCase.ExecuteAsync("/path/to/project");
+
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Switched to: {result.Data.Name}");
+}
+```

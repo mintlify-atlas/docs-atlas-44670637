@@ -1,0 +1,166 @@
+---
+title: Introduction
+description: Welcome to Chapi Assistant - Your intelligent .NET development companion for project scaffolding, code generation, and Git workflow automation
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Chapi Assistant Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Chapi Assistant Hero Dark"
+/>
+
+## Welcome to Chapi Assistant
+
+Chapi Assistant is a powerful .NET WPF desktop application designed to accelerate .NET development workflows. Built with Clean Architecture principles and leveraging modern technologies like LibGit2Sharp, Roslyn, and Microsoft.Extensions.AI, Chapi streamlines project scaffolding, code generation, and Git management.
+
+<Note>
+  **Perfect for .NET Teams**: Chapi is ideal for teams working on .NET 8.0+ projects who want to standardize their project structure, automate repetitive tasks, and maintain consistent coding patterns across their codebase.
+</Note>
+
+## What Makes Chapi Special?
+
+Chapi goes beyond simple code generation by providing an intelligent, AI-powered assistant that understands your project structure and helps you maintain architectural consistency throughout your development lifecycle.
+
+### Key Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Project Scaffolding" icon="folder-tree" href="/features/project-scaffolding">
+    Clone template repositories, automatically rename namespaces, and initialize new projects with a single click
+  </Card>
+  
+  <Card title="Code Generation" icon="code" href="/features/code-generation">
+    Generate complete Clean Architecture modules including API controllers, use cases, domain entities, and infrastructure with Roslyn-powered code analysis
+  </Card>
+  
+  <Card title="Git Integration" icon="git-alt" href="/features/git-management">
+    Visual Git workflow management with staging, commits, branches, releases, and remote synchronization using LibGit2Sharp
+  </Card>
+  
+  <Card title="AI Assistant" icon="robot" href="/features/ai-assistant">
+    Conversational AI assistant powered by OpenAI, Claude, or Gemini to help with architecture questions, commit messages, and SQL generation
+  </Card>
+</CardGroup>
+
+## Architecture Highlights
+
+Chapi is built with modern .NET development best practices:
+
+<AccordionGroup>
+  <Accordion title="Clean Architecture Layers">
+    - **Domain**: Core business entities and interfaces
+    - **Application**: Use cases implementing business logic
+    - **Infrastructure**: External services (Git, AI, file system)
+    - **Presentation**: WPF views with MVVM pattern
+  </Accordion>
+  
+  <Accordion title="Advanced Technologies">
+    - **.NET 8.0**: Latest LTS framework with modern C# features
+    - **LibGit2Sharp**: Native Git operations without external dependencies
+    - **Roslyn**: Compile-time code analysis and generation
+    - **Microsoft.Extensions.AI**: Unified AI provider abstraction
+    - **Material Design**: Modern, professional UI/UX
+  </Accordion>
+  
+  <Accordion title="Dependency Injection">
+    Full DI container configuration with scoped services for use cases, singletons for infrastructure, and transient AI providers with automatic fallback selection.
+  </Accordion>
+</AccordionGroup>
+
+## Who Should Use Chapi?
+
+<CardGroup cols={3}>
+  <Card title="Backend Developers" icon="server">
+    Rapidly scaffold .NET API projects with consistent structure following Clean Architecture patterns
+  </Card>
+  
+  <Card title="Tech Leads" icon="users">
+    Enforce team standards and coding conventions through automated project templates and code generation
+  </Card>
+  
+  <Card title="DevOps Engineers" icon="gears">
+    Streamline Git workflows with visual branch management, release tagging, and deployment automation
+  </Card>
+</CardGroup>
+
+## Real-World Example
+
+Here's how Chapi transforms a typical project creation workflow:
+
+```bash
+# Traditional approach (manual, error-prone)
+git clone https://gitlab.com/net-core2/api-base.git MyNewProject
+cd MyNewProject
+rm -rf .git
+find . -type f -exec sed -i 's/api-base/MyNewProject/g' {} +
+# ...manually rename 50+ files and folders
+git init
+git remote add origin https://github.com/myorg/MyNewProject.git
+```
+
+**With Chapi:** Just enter your project name, select the template, and click Create. Chapi handles all the renaming, Git setup, and repository association automatically.
+
+## Technology Stack
+
+<CodeGroup>
+```xml Chapi.csproj
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.3.0" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.0.0" />
+    <PackageReference Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+</Project>
+```
+</CodeGroup>
+
+## What's Next?
+
+<Steps>
+  <Step title="Install Prerequisites">
+    Set up .NET 8.0 SDK, Git, and prepare your Windows environment
+    
+    [Go to Installation →](/installation)
+  </Step>
+  
+  <Step title="Quick Start Guide">
+    Create your first project with Chapi in under 5 minutes
+    
+    [Go to Quickstart →](/quickstart)
+  </Step>
+  
+  <Step title="Explore Features">
+    Learn about code generation, Git workflows, and AI assistance
+    
+    [Browse Features →](/features/project-creation)
+  </Step>
+</Steps>
+
+<Warning>
+  **Windows Only**: Chapi is currently a Windows-exclusive application built with WPF. Cross-platform support using Avalonia UI is under consideration for future releases.
+</Warning>
+
+## Community & Support
+
+Chapi is created by [Johan Chanel](https://gitlab.com/_chanel) and licensed under MIT.
+
+<CardGroup cols={2}>
+  <Card title="Report Issues" icon="bug" href="https://gitlab.com/net-core2/chapi-assistant/issues">
+    Found a bug or have a feature request? Let us know!
+  </Card>
+  
+  <Card title="Contribute" icon="code-branch" href="https://gitlab.com/net-core2/chapi-assistant">
+    View source code and contribute to the project
+  </Card>
+</CardGroup>

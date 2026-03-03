@@ -1,0 +1,442 @@
+---
+title: "Git Operations"
+description: "Use cases for Git repository management in Chapi Assistant"
+---
+
+## Overview
+
+The Git Operations use cases provide comprehensive Git functionality including commits, branches, stashing, and remote operations.
+
+## CommitChangesUseCase
+
+Commits staged changes to the Git repository.
+
+### Request Model
+
+```csharp
+public class CommitRequest
+{
+    public string ProjectPath { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public IEnumerable<string> Files { get; set; } = Enumerable.Empty<string>();
+}
+```
+
+### Method Signature
+
+```csharp
+public async Task<Result<GitCommit>> ExecuteAsync(CommitRequest request)
+```
+
+<ParamField path="request" type="CommitRequest" required>
+  The commit request parameters
+  <Expandable title="properties">
+    <ParamField path="ProjectPath" type="string" required>
+      Path to the project repository
+    </ParamField>
+    <ParamField path="Message" type="string" required>
+      Commit message
+    </ParamField>
+    <ParamField path="Files" type="IEnumerable<string>" required>
+      List of file paths to commit
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="Result<GitCommit>" type="Result<GitCommit>">
+  Result containing the created commit
+  <Expandable title="properties">
+    <ResponseField name="IsSuccess" type="bool">
+      True if the commit was successful
+    </ResponseField>
+    <ResponseField name="Data" type="GitCommit">
+      The created commit object
+    </ResponseField>
+    <ResponseField name="Error" type="string">
+      Error message if the operation failed
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new CommitChangesUseCase(gitRepo, notifications);
+var request = new CommitRequest
+{
+    ProjectPath = "C:\\Projects\\MyApp",
+    Message = "Add user authentication feature",
+    Files = new[] { "src/Auth/Login.cs", "src/Auth/Register.cs" }
+};
+
+var result = await useCase.ExecuteAsync(request);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Committed: {result.Data.Sha}");
+}
+```
+
+---
+
+## CreateBranchUseCase
+
+Creates a new Git branch.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectPath, 
+    string branchName, 
+    string? fromCommitOrBranch = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="branchName" type="string" required>
+  Name for the new branch
+</ParamField>
+
+<ParamField path="fromCommitOrBranch" type="string">
+  Optional commit SHA or branch name to create from (defaults to HEAD)
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new CreateBranchUseCase(gitRepo, notificationService);
+
+// Create from HEAD
+var result = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    branchName: "feature/new-feature"
+);
+
+// Create from specific branch
+var result2 = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    branchName: "hotfix/bug-fix",
+    fromCommitOrBranch: "develop"
+);
+```
+
+---
+
+## SwitchBranchUseCase
+
+Switches to a different Git branch.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectPath, 
+    string branchName, 
+    bool stashChanges = false
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="branchName" type="string" required>
+  Name of the branch to switch to
+</ParamField>
+
+<ParamField path="stashChanges" type="bool" default="false">
+  Whether to automatically stash uncommitted changes before switching
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new SwitchBranchUseCase(gitRepo, notifications);
+
+// Switch without stashing
+var result = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    branchName: "develop"
+);
+
+// Switch with automatic stashing
+var result2 = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    branchName: "main",
+    stashChanges: true
+);
+```
+
+---
+
+## PushChangesUseCase
+
+Pushes local commits to the remote repository.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath, string branch)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="branch" type="string" required>
+  Name of the branch to push
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new PushChangesUseCase(gitRepo, notifications);
+var result = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    branch: "main"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Changes pushed successfully");
+}
+```
+
+---
+
+## PullChangesUseCase
+
+Pulls changes from the remote repository.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+---
+
+## LoadChangesUseCase
+
+Loads the current working directory changes.
+
+### Method Signature
+
+```csharp
+public async Task<IEnumerable<FileChange>> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ResponseField name="IEnumerable<FileChange>" type="IEnumerable<FileChange>">
+  Collection of file changes
+</ResponseField>
+
+### FileChange Entity
+
+```csharp
+public class FileChange
+{
+    public string FilePath { get; set; }
+    public ChangeStatus Status { get; set; }
+    public int Additions { get; set; }
+    public int Deletions { get; set; }
+}
+
+public enum ChangeStatus
+{
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
+    Untracked,
+    Conflict
+}
+```
+
+### Example Usage
+
+```csharp
+var useCase = new LoadChangesUseCase(gitRepo);
+var changes = await useCase.ExecuteAsync("C:\\Projects\\MyApp");
+
+foreach (var change in changes)
+{
+    Console.WriteLine($"{change.Status}: {change.FilePath}");
+    Console.WriteLine($"  +{change.Additions} -{change.Deletions}");
+}
+```
+
+---
+
+## StashChangesUseCase
+
+Stashes uncommitted changes.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectPath, 
+    string message, 
+    IEnumerable<string>? files = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Message describing the stash
+</ParamField>
+
+<ParamField path="files" type="IEnumerable<string>">
+  Optional list of specific files to stash (null = all changes)
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Result indicating success or failure
+</ResponseField>
+
+### Example Usage
+
+```csharp
+var useCase = new StashChangesUseCase(gitRepo, notificationService);
+
+// Stash all changes
+var result = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    message: "WIP: Working on authentication"
+);
+
+// Stash specific files
+var result2 = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    message: "Save config changes",
+    files: new[] { "appsettings.json" }
+);
+```
+
+---
+
+## StashPopUseCase
+
+Applies and removes the most recent stash.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath, int index = 0)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="index" type="int" default="0">
+  Index of the stash to pop (0 = most recent)
+</ParamField>
+
+---
+
+## CreateTagUseCase
+
+Creates a Git tag.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectPath, 
+    string tagName, 
+    string message = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="tagName" type="string" required>
+  Name of the tag (e.g., "v1.0.0")
+</ParamField>
+
+<ParamField path="message" type="string">
+  Optional tag message (creates annotated tag if provided)
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new CreateTagUseCase(gitRepo);
+var result = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    tagName: "v1.0.0",
+    message: "Release version 1.0.0"
+);
+```
+
+---
+
+## LoadHistoryUseCase
+
+Loads the commit history of the repository.
+
+### Method Signature
+
+```csharp
+public async Task<IEnumerable<GitCommit>> ExecuteAsync(
+    string projectPath, 
+    int maxCount = 100
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="maxCount" type="int" default="100">
+  Maximum number of commits to retrieve
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new LoadHistoryUseCase(gitRepo);
+var commits = await useCase.ExecuteAsync(
+    projectPath: "C:\\Projects\\MyApp",
+    maxCount: 50
+);
+
+foreach (var commit in commits)
+{
+    Console.WriteLine($"{commit.Sha.Substring(0, 7)} - {commit.Message}");
+}
+```

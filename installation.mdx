@@ -1,0 +1,385 @@
+---
+title: Installation
+description: Step-by-step guide to install Chapi Assistant and configure your development environment
+---
+
+## System Requirements
+
+Before installing Chapi Assistant, ensure your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Operating System" icon="windows">
+    **Windows 10/11** (64-bit)
+    
+    Chapi is a WPF application requiring Windows desktop environment
+  </Card>
+  
+  <Card title=".NET Runtime" icon="microsoft">
+    **.NET 8.0 SDK or higher**
+    
+    Required for running and developing .NET applications
+  </Card>
+  
+  <Card title="Git" icon="git-alt">
+    **Git 2.30+** (optional but recommended)
+    
+    For WSL Git integration and command-line operations
+  </Card>
+  
+  <Card title="Hardware" icon="microchip">
+    **4GB RAM minimum**, 8GB+ recommended
+    
+    Adequate disk space for project templates
+  </Card>
+</CardGroup>
+
+<Warning>
+  **Windows-Only Application**: Chapi uses WPF (Windows Presentation Foundation) and Windows-specific APIs for credential storage. It cannot run on macOS or Linux.
+</Warning>
+
+## Prerequisites Installation
+
+### Step 1: Install .NET 8.0 SDK
+
+Chapi requires the .NET 8.0 SDK to run. This is a Long-Term Support (LTS) release.
+
+<Steps>
+  <Step title="Download .NET 8.0 SDK">
+    Visit the official .NET download page:
+    
+    [https://dotnet.microsoft.com/download/dotnet/8.0](https://dotnet.microsoft.com/download/dotnet/8.0)
+    
+    Select **Windows x64** installer for your system.
+  </Step>
+  
+  <Step title="Run the Installer">
+    Execute the downloaded installer and follow the wizard. The default installation path is typically:
+    
+    ```
+    C:\Program Files\dotnet\
+    ```
+  </Step>
+  
+  <Step title="Verify Installation">
+    Open PowerShell or Command Prompt and verify:
+    
+    ```powershell
+    dotnet --version
+    ```
+    
+    Expected output:
+    ```
+    8.0.xxx
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  If the `dotnet` command is not recognized, you may need to restart your terminal or add `C:\Program Files\dotnet\` to your system PATH environment variable.
+</Tip>
+
+### Step 2: Install Git (Optional)
+
+While Chapi uses LibGit2Sharp for most Git operations (which doesn't require Git installed), having Git available enables advanced features like WSL integration.
+
+<Steps>
+  <Step title="Download Git for Windows">
+    Download from the official website:
+    
+    [https://git-scm.com/download/win](https://git-scm.com/download/win)
+    
+    Choose the **64-bit Git for Windows Setup** installer.
+  </Step>
+  
+  <Step title="Install with Recommended Settings">
+    During installation, use these settings:
+    
+    - **Default editor**: Visual Studio Code (or your preference)
+    - **PATH environment**: Git from the command line and 3rd-party software
+    - **Line ending conversions**: Checkout Windows-style, commit Unix-style
+    - **Terminal emulator**: Use Windows' default console window
+  </Step>
+  
+  <Step title="Configure Git User">
+    Set your identity for commits:
+    
+    ```bash
+    git config --global user.name "Your Name"
+    git config --global user.email "your.email@example.com"
+    ```
+    
+    This is **required** for Chapi's commit functionality to work properly.
+  </Step>
+  
+  <Step title="Verify Installation">
+    ```bash
+    git --version
+    ```
+    
+    Expected output:
+    ```
+    git version 2.40.x.windows.x
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  **LibGit2Sharp Integration**: Chapi primarily uses LibGit2Sharp (a native .NET Git implementation) which works without Git installed. However, certain advanced operations may delegate to the WSL Git repository implementation when configured.
+</Note>
+
+## Install Chapi Assistant
+
+### Method 1: Download Release Binary (Recommended)
+
+<Steps>
+  <Step title="Download Latest Release">
+    Visit the Chapi Assistant releases page:
+    
+    ```
+    https://gitlab.com/net-core2/chapi-assistant/-/releases
+    ```
+    
+    Download the latest `.zip` or installer package.
+  </Step>
+  
+  <Step title="Extract and Run">
+    Extract the archive to your preferred location:
+    
+    ```
+    C:\Program Files\ChapiAssistant\
+    ```
+    
+    Run `Chapi.exe` to launch the application.
+  </Step>
+  
+  <Step title="Create Desktop Shortcut (Optional)">
+    Right-click `Chapi.exe` → **Send to** → **Desktop (create shortcut)**
+  </Step>
+</Steps>
+
+### Method 2: Build from Source
+
+For developers who want to customize or contribute:
+
+<CodeGroup>
+```bash Clone Repository
+# Clone the repository
+git clone https://gitlab.com/net-core2/chapi-assistant.git
+cd chapi-assistant/Chapi
+```
+
+```bash Build Project
+# Restore dependencies
+dotnet restore
+
+# Build the project
+dotnet build --configuration Release
+```
+
+```bash Run Application
+# Run directly
+dotnet run --configuration Release
+
+# Or publish as self-contained
+dotnet publish -c Release -r win-x64 --self-contained
+```
+</CodeGroup>
+
+<Accordion title="Project Structure">
+  ```
+  Chapi/
+  ├── Application/          # Use cases and business logic
+  │   ├── UseCases/
+  │   │   ├── Git/         # Git operations
+  │   │   ├── Projects/    # Project management
+  │   │   ├── CodeGeneration/
+  │   │   └── AI/          # AI integrations
+  ├── Domain/              # Core entities and interfaces
+  ├── Infrastructure/      # External services
+  │   ├── Git/            # LibGit2Sharp + WSL implementations
+  │   ├── AI/             # OpenAI, Claude, Gemini clients
+  │   ├── Roslyn/         # Code generation
+  │   └── Services/
+  └── Presentation/        # WPF UI
+      ├── Views/
+      └── ViewModels/      # MVVM pattern
+  ```
+</Accordion>
+
+## Post-Installation Configuration
+
+### Configure Git Authentication
+
+Chapi supports GitHub and GitLab authentication for private repositories.
+
+<Steps>
+  <Step title="Open Settings">
+    Launch Chapi → Click **Settings** (gear icon) → **Git Configuration**
+  </Step>
+  
+  <Step title="Select Provider">
+    Choose your Git provider:
+    - **GitHub**: Uses OAuth with personal access tokens
+    - **GitLab**: Uses OAuth with GitLab tokens
+  </Step>
+  
+  <Step title="Authenticate">
+    Click **Login** and complete the OAuth flow in your browser.
+    
+    Credentials are securely stored using Windows Credential Manager.
+  </Step>
+</Steps>
+
+<CodeGroup>
+```csharp App.xaml.cs - Auth Configuration
+// Chapi's DI configuration for Git authentication
+services.Configure<GitAuthConfig>(Configuration.GetSection("GitAuth"));
+
+// Auth providers
+services.AddSingleton<ICredentialStorageService, WindowsCredentialStorageService>();
+services.AddSingleton<GitHubOAuthProvider>();
+services.AddSingleton<GitLabOAuthProvider>();
+services.AddSingleton<IGitAuthProviderFactory, GitAuthProviderFactory>();
+```
+</CodeGroup>
+
+### Configure AI Providers (Optional)
+
+To enable the AI assistant features, configure at least one AI provider:
+
+<Tabs>
+  <Tab title="OpenAI">
+    1. Get your API key from [platform.openai.com](https://platform.openai.com/api-keys)
+    2. Open Chapi → **Settings** → **AI Configuration**
+    3. Enter your **OpenAI API Key**
+    4. Select **OpenAI** as preferred provider
+  </Tab>
+  
+  <Tab title="Claude (Anthropic)">
+    1. Get your API key from [console.anthropic.com](https://console.anthropic.com/)
+    2. Open Chapi → **Settings** → **AI Configuration**
+    3. Enter your **Claude API Key**
+    4. Select **Claude** as preferred provider
+  </Tab>
+  
+  <Tab title="Gemini (Google)">
+    1. Get your API key from [aistudio.google.com](https://aistudio.google.com/apikey)
+    2. Open Chapi → **Settings** → **AI Configuration**
+    3. Enter your **Gemini API Key**
+    4. Select **Gemini** as preferred provider (default)
+  </Tab>
+</Tabs>
+
+<Note>
+  **Automatic Fallback**: If your preferred provider is unavailable, Chapi automatically falls back to other configured providers in this order: Gemini → OpenAI → Claude.
+</Note>
+
+## Verify Installation
+
+Confirm everything is working correctly:
+
+<Steps>
+  <Step title="Launch Chapi">
+    Open Chapi Assistant. You should see:
+    - Main window with tabs: **Changes**, **History**, **Releases**, **Workspace**, **Assistant**
+    - Version number in the bottom-right corner
+    - System tray icon for quick access
+  </Step>
+  
+  <Step title="Check Git Integration">
+    Navigate to **Settings** → **Service**
+    
+    Verify the status indicator shows **Active** (green)
+  </Step>
+  
+  <Step title="Test AI Assistant (if configured)">
+    Open the **Assistant** tab
+    
+    Type a simple message like "Hello" and press Enter
+    
+    You should receive a response from your configured AI provider
+  </Step>
+</Steps>
+
+<Warning>
+  **First Launch**: On first run, Chapi will create configuration files in:
+  ```
+  %APPDATA%\Chapi\
+  ```
+  This includes user settings, project registry, and AI configurations.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Application won't start">
+    **Solution**:
+    - Ensure .NET 8.0 Runtime is installed: `dotnet --list-runtimes`
+    - Check Windows Event Viewer for .NET errors
+    - Run as Administrator (right-click → Run as administrator)
+  </Accordion>
+  
+  <Accordion title="Git operations fail">
+    **Solution**:
+    - Configure Git user identity:
+      ```bash
+      git config --global user.name "Your Name"
+      git config --global user.email "email@example.com"
+      ```
+    - Verify repository access permissions
+    - Check credential storage in Windows Credential Manager
+  </Accordion>
+  
+  <Accordion title="AI Assistant not responding">
+    **Solution**:
+    - Verify API key is correctly entered in Settings
+    - Check internet connectivity
+    - Try switching to a different AI provider
+    - Review error messages in the Assistant tab
+  </Accordion>
+  
+  <Accordion title="Single instance restriction">
+    **Expected Behavior**: Only one instance of Chapi can run at a time.
+    
+    If you try to launch a second instance, it will activate the existing window instead of opening a new one. This is by design to prevent conflicts.
+  </Accordion>
+</AccordionGroup>
+
+## Auto-Updates
+
+Chapi includes built-in update functionality using Velopack:
+
+<Steps>
+  <Step title="Automatic Check">
+    Chapi checks for updates on startup (configurable in Settings)
+  </Step>
+  
+  <Step title="Download Update">
+    When an update is available, you'll see a notification
+    
+    Click **Download** to fetch the new version in the background
+  </Step>
+  
+  <Step title="Install & Restart">
+    Once downloaded, click **Install & Restart**
+    
+    Chapi will close, apply the update, and relaunch automatically
+  </Step>
+</Steps>
+
+<CodeGroup>
+```csharp App.xaml.cs - Update Configuration
+// Velopack configuration
+VelopackApp.Build()
+    .SetAutoApplyOnStartup(false)  // Manual control
+    .Run();
+```
+</CodeGroup>
+
+## Next Steps
+
+Now that Chapi is installed, you're ready to create your first project!
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Follow our quickstart guide to create your first project with Chapi in under 5 minutes
+</Card>

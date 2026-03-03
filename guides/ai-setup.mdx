@@ -1,0 +1,543 @@
+---
+title: AI Setup
+description: Configure Google Gemini for intelligent commit messages and conversational assistance
+---
+
+Chapi Assistant integrates Google Gemini AI to provide intelligent code analysis, commit message generation, and conversational project assistance.
+
+## Prerequisites
+
+Before setting up AI features, you need:
+
+- **Google AI API Key**: Get one from [Google AI Studio](https://makersuite.google.com/app/apikey)
+- **Gemini Model Access**: Ensure you have access to Gemini models (free tier available)
+
+## Configuration
+
+<Steps>
+  <Step title="Obtain API Key">
+    1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+    2. Sign in with your Google account
+    3. Click "Create API Key"
+    4. Copy your API key
+    
+    <Warning>
+      Keep your API key secure. Never commit it to version control.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Chapi">
+    Add your API key to Chapi's configuration file:
+    
+    ```json
+    // appsettings.json or user settings
+    {
+      "AI": {
+        "Provider": "Gemini",
+        "ApiKey": "your-api-key-here",
+        "Model": "gemini-1.5-flash"
+      }
+    }
+    ```
+    
+    Available models:
+    - `gemini-1.5-flash`: Fast, cost-effective (recommended)
+    - `gemini-1.5-pro`: More capable for complex tasks
+  </Step>
+
+  <Step title="Verify Setup">
+    Test the AI connection:
+    
+    1. Open the AI Assistant panel
+    2. Type: "Hello, can you help me?"
+    3. You should receive a response from Gemini
+    
+    If successful, you'll see:
+    ```
+    👋 ¡Hola! Soy tu asistente de desarrollo.
+    Estoy aquí para ayudarte con:
+    🔎 Explicar la arquitectura de tu proyecto
+    📝 Analizar commits y cambios recientes
+    🌿 Resolver dudas sobre Git
+    🤖 Ejecutar operaciones del asistente Chapi
+    ```
+  </Step>
+</Steps>
+
+## AI Features
+
+### Commit Message Generation
+
+The AI analyzes your code changes and generates professional commit messages:
+
+<Tabs>
+  <Tab title="How It Works">
+    ```csharp
+    public class GenerateCommitMessageUseCase
+    {
+        private readonly IChatClient _chatClient;
+        
+        public async Task<Result<string>> ExecuteAsync(string diffContent)
+        {
+            // Build prompt with diff content
+            var prompt = GetPrompt.GitCommit(diffContent);
+            
+            // Call Gemini API
+            var messages = new List<ChatMessage>
+            {
+                new ChatMessage(ChatRole.User, prompt)
+            };
+            
+            var response = await _chatClient.CompleteAsync(messages);
+            
+            return Result<string>.Success(response.Message.Text);
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Prompt Engineering">
+    Chapi uses a carefully crafted prompt for Conventional Commits:
+    
+    ```csharp
+    public static string GitCommit(string diffContent)
+    {
+        return $@"
+        Analiza el siguiente 'diff' y genera un mensaje de commit 
+        profesional en español según el estándar Conventional Commits.
+        
+        Reglas:
+        - Retorna SÓLO un objeto JSON válido
+        - Estructura: {{ "summary": "...", "description": "..." }}
+        - Summary: Una línea, 72 caracteres máximo
+        - Description: 1-2 frases + lista de cambios importantes
+        
+        Tipos:
+        - 'feat': Nuevas funciones
+        - 'fix': Corrección de errores
+        - 'refactor': Limpieza de código
+        - 'chore': Mantenimiento
+        
+        Diff:
+        {diffContent}
+        ";
+    }
+    ```
+  </Tab>
+
+  <Tab title="Example Output">
+    Input diff:
+    ```diff
+    + public async Task<Result> AuthenticateAsync()
+    + {
+    +     var authUrl = BuildAuthUrl();
+    +     Process.Start(authUrl);
+    +     var code = await ListenForCallback();
+    +     return await ExchangeToken(code);
+    + }
+    ```
+    
+    AI-generated commit:
+    ```json
+    {
+      "summary": "feat(auth): implement OAuth2 authentication flow",
+      "description": "Add OAuth2 authentication with browser redirect.\n\n- Create AuthenticateAsync method\n- Implement callback listener\n- Add token exchange logic"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Conversational Assistant
+
+The AI Assistant provides context-aware help for your project:
+
+<Steps>
+  <Step title="Project Context">
+    The assistant automatically loads project information:
+    
+    ```csharp
+    public string BuildContextInfo(ConversationContext context)
+    {
+        return $@"
+        === PROJECT CONTEXT ===
+        📁 Project: {context.CurrentProject.Name}
+        📍 Path: {context.CurrentProject.Path}
+        🔧 Technology: {context.CurrentProject.Technology}
+        📂 Folders: {string.Join(", ", context.CurrentProject.MainFolders)}
+        
+        === GIT INFORMATION ===
+        🌿 Branch: {context.CurrentProject.Git.CurrentBranch}
+        📊 Ahead: {context.CurrentProject.Git.AheadBy} commits
+        ⚠️ Modified: {context.CurrentProject.Git.ModifiedFiles.Count} files
+        
+        Recent commits:
+        {FormatRecentCommits(context.CurrentProject.Git.RecentCommits)}
+        ";
+    }
+    ```
+  </Step>
+
+  <Step title="Conversation History">
+    The assistant remembers your conversation:
+    
+    ```csharp
+    public string BuildConversationHistory(ConversationContext context)
+    {
+        var history = new StringBuilder();
+        history.AppendLine("=== CONVERSATION HISTORY ===");
+        
+        foreach (var msg in context.ConversationHistory.TakeLast(5))
+        {
+            var author = msg.Author == MessageAuthor.User 
+                ? "Usuario" : "Asistente";
+            history.AppendLine($"{author}: {msg.Text}");
+        }
+        
+        return history.ToString();
+    }
+    ```
+  </Step>
+
+  <Step title="Capability Awareness">
+    The AI knows what actions it can perform:
+    
+    ```csharp
+    public string BuildCapabilitiesInfo()
+    {
+        var capabilities = new StringBuilder();
+        capabilities.AppendLine("=== YOUR CAPABILITIES ===");
+        
+        foreach (var cap in _capabilityRegistry.GetAllCapabilities())
+        {
+            capabilities.AppendLine(
+                $"- ID: {cap.Id} | Description: {cap.Description}"
+            );
+        }
+        
+        return capabilities.ToString();
+    }
+    ```
+    
+    Available capabilities:
+    - `git.commit`: Create commits
+    - `git.push`: Push to remote
+    - `git.pull`: Pull from remote
+    - `git.branch.create`: Create branches
+    - `git.branch.switch`: Switch branches
+    - `git.stash`: Stash changes
+    - `project.create`: Create new projects
+    - `project.clone`: Clone repositories
+  </Step>
+</Steps>
+
+## Using the AI Assistant
+
+### Natural Language Commands
+
+<Tabs>
+  <Tab title="Git Operations">
+    ```bash
+    # Commit changes
+    "Commit all changes with a professional message"
+    "Create a commit and push to remote"
+    
+    # Branch management
+    "Create a new branch called feature/auth"
+    "Switch to the develop branch"
+    
+    # Status queries
+    "What files did I change?"
+    "Show me my recent commits"
+    "Am I behind the remote?"
+    ```
+  </Tab>
+
+  <Tab title="Project Management">
+    ```bash
+    # Create projects
+    "Create a new API called UserService in C:\\Projects"
+    
+    # Clone repositories
+    "Clone https://github.com/user/repo.git to C:\\Projects"
+    
+    # List projects
+    "Show me all my projects"
+    "What projects do I have?"
+    ```
+  </Tab>
+
+  <Tab title="Code Analysis">
+    ```bash
+    # Architecture questions
+    "Explain the architecture of this project"
+    "What's the folder structure?"
+    
+    # Code understanding
+    "What does this commit change?"
+    "Explain the recent modifications"
+    
+    # Guidance
+    "How do I add a new module?"
+    "Best practices for this codebase?"
+    ```
+  </Tab>
+</Tabs>
+
+### Action Execution
+
+The AI can suggest and execute actions:
+
+```csharp
+public async Task<Result<ChatMessage>> ProcessUserMessageAsync(
+    string userMessage,
+    Action<string>? onTokenReceived = null)
+{
+    // Get AI response with streaming
+    var result = await _geminiChatService.SendMessageAsync(
+        userMessage,
+        context,
+        onTokenReceived
+    );
+    
+    // Parse action from response
+    // Format: [[ACTION:{"type":"git.commit","params":{...}}]]
+    var action = ExtractActionFromResponse(result.Data);
+    
+    if (action != null)
+    {
+        // Create actionable message with button
+        return new ChatMessage
+        {
+            Text = result.Data,
+            Author = MessageAuthor.Assistant,
+            Action = new UserIntent
+            {
+                CapabilityId = action.Type,
+                Parameters = action.Params
+            }
+        };
+    }
+    
+    return new ChatMessage { Text = result.Data };
+}
+```
+
+Example interaction:
+
+```
+User: "Commit my changes with a good message"
+
+Assistant: "I'll create a professional commit for your changes.
+
+You modified:
+- src/Services/AuthService.cs
+- src/Controllers/AuthController.cs
+
+Proposed message:
+feat(auth): implement OAuth2 authentication flow
+
+Add OAuth2 authentication with GitHub provider:
+- Create AuthService with token exchange
+- Add login endpoint to AuthController
+- Implement secure credential storage
+
+Would you like me to commit these changes?
+
+[Execute Commit]"
+```
+
+## Streaming Responses
+
+Chapi uses streaming for real-time AI responses:
+
+```csharp
+public async Task<Result<string>> SendMessageAsync(
+    string userMessage,
+    ConversationContext context,
+    Action<string>? onTokenReceived = null)
+{
+    var fullPrompt = GetPrompt.ChatAssistant(
+        contextInfo, 
+        conversationHistory, 
+        capabilitiesInfo, 
+        userMessage
+    );
+    
+    var messages = new List<ChatMessage>
+    {
+        new ChatMessage(ChatRole.User, fullPrompt)
+    };
+    
+    var fullResponseBuilder = new StringBuilder();
+    
+    // Stream tokens as they arrive
+    await foreach (var update in chatClient.GetStreamingResponseAsync(messages))
+    {
+        if (update.Contents[0] is TextContent textContent)
+        {
+            var token = textContent.Text;
+            fullResponseBuilder.Append(token);
+            onTokenReceived?.Invoke(token); // Update UI in real-time
+        }
+    }
+    
+    return Result<string>.Success(fullResponseBuilder.ToString());
+}
+```
+
+This provides a ChatGPT-like typing effect in the UI.
+
+## Database Analysis (Advanced)
+
+Chapi can analyze stored procedures and generate code:
+
+```csharp
+public static string AnalyzeEmail(
+    string moduleName,
+    string methodName,
+    string emailContent,
+    string database,
+    string methodType)
+{
+    return $@"
+    Analiza el siguiente correo técnico y extrae información 
+    del Stored Procedure.
+    
+    CONTEXTO:
+    - Módulo: {moduleName}
+    - Método: {methodName}
+    - Base de datos: {database}
+    
+    CORREO TÉCNICO:
+    {emailContent}
+    
+    INSTRUCCIONES:
+    Retorna JSON con:
+    - StoredProcedureName: Nombre del SP
+    - RequestParameters: Parámetros de entrada (C# DTOs)
+    - DtoFields: Campos de respuesta
+    - ResponseMapper: Mapeo de campos
+    
+    Usa convenciones:
+    - Campos CODE terminan con 'Code'
+    - Campos NAME terminan con 'Name'
+    - Campos FLAG inician con 'fla'
+    - Todo en camelCase
+    ";
+}
+```
+
+## API Rate Limits
+
+Be aware of Gemini API limits:
+
+<Info>
+  **Free Tier Limits**:
+  - 15 requests per minute
+  - 1 million tokens per day
+  - 1,500 requests per day
+</Info>
+
+Chapi includes automatic retry logic:
+
+```csharp
+try
+{
+    var response = await chatClient.GetStreamingResponseAsync(messages);
+}
+catch (Exception ex) when (ex.Message.Contains("rate limit"))
+{
+    // Wait and retry
+    await Task.Delay(TimeSpan.FromSeconds(60));
+    // Retry logic...
+}
+```
+
+## Privacy and Security
+
+<AccordionGroup>
+  <Accordion title="Data Transmission">
+    Chapi sends to Gemini:
+    - Project metadata (name, structure)
+    - Git information (branch, commits)
+    - Code diffs (for commit generation)
+    - User messages
+    
+    **Not sent**: Credentials, API keys, full source code
+  </Accordion>
+
+  <Accordion title="API Key Storage">
+    API keys are stored securely:
+    - Encrypted in user settings
+    - Never transmitted except to Google AI
+    - Not included in logs or telemetry
+  </Accordion>
+
+  <Accordion title="Opt-Out">
+    To disable AI features:
+    - Remove API key from settings
+    - AI features will gracefully degrade
+    - All other Chapi features continue working
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Warning>
+  **Invalid API Key**: Verify your key is correct and has access to Gemini models.
+</Warning>
+
+<Warning>
+  **Rate Limit Exceeded**: Wait a minute or upgrade to a paid plan for higher limits.
+</Warning>
+
+<Warning>
+  **No Response**: Check internet connection and Google AI status page.
+</Warning>
+
+## Customizing Prompts
+
+You can modify prompts in `GetPrompt.cs` for different behavior:
+
+```csharp
+public static string ChatAssistant(
+    string contextInfo,
+    string conversationHistory,
+    string capabilitiesInfo,
+    string userMessage)
+{
+    return $@"
+    Eres un asistente de desarrollo integrado en Chapi Assistant.
+    
+    TU PERSONALIDAD:
+    - Hablas en español de forma natural y amigable
+    - Eres experto en desarrollo de software, Git, y arquitectura
+    
+    TUS CAPACIDADES:
+    {capabilitiesInfo}
+    
+    {contextInfo}
+    {conversationHistory}
+    
+    MENSAJE DEL USUARIO:
+    {userMessage}
+    ";
+}
+```
+
+Customize for:
+- Different languages
+- Specialized domains
+- Custom capabilities
+- Different response styles
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Templates" icon="layer-group" href="/guides/templates">
+    Learn about project templates and customization
+  </Card>
+  <Card title="Git Workflow" icon="git-alt" href="/guides/git-workflow">
+    Return to Git workflow documentation
+  </Card>
+</CardGroup>

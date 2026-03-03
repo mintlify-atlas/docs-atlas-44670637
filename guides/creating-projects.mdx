@@ -1,0 +1,281 @@
+---
+title: Creating Projects
+description: Learn how to create new .NET projects using Chapi Assistant's Clean Architecture templates
+---
+
+Chapi Assistant provides powerful project scaffolding capabilities using Clean Architecture templates. You can create new projects from templates or clone existing repositories.
+
+## Creating a New Project
+
+Chapi uses a template-based approach to scaffold new .NET projects with Clean Architecture.
+
+<Steps>
+  <Step title="Open Project Creation">
+    Navigate to the project creation dialog in Chapi Assistant or use the AI Assistant to create a project.
+    
+    ```bash
+    # AI Assistant command example
+    "Create a new API called MyApiProject in C:\Projects"
+    ```
+  </Step>
+
+  <Step title="Configure Project Details">
+    Provide the following information:
+    
+    - **Project Name**: The name of your project (e.g., `MyApiProject`)
+    - **Parent Directory**: Where the project will be created (e.g., `C:\Projects`)
+    - **Template URL**: Git repository URL for the template (default: Clean Architecture)
+    - **Remote URL** (optional): Your remote Git repository URL
+  </Step>
+
+  <Step title="Project Creation Process">
+    Chapi Assistant performs the following steps automatically:
+    
+    1. **Clone the template** repository
+    2. **Remove original Git metadata** (.git folder)
+    3. **Rename project structure** to match your project name
+    4. **Initialize new Git repository**
+    5. **Add remote origin** (if provided)
+    6. **Register project** in Chapi workspace
+
+    Progress is shown in real-time:
+    
+    ```
+    Clonando repositorio base...
+    Limpiando metadatos de Git...
+    Personalizando estructura del proyecto...
+    Inicializando nuevo repositorio Git...
+    Asociando repositorio remoto...
+    Registrando proyecto en Chapi...
+    ```
+  </Step>
+
+  <Step title="Verify Project Structure">
+    Your new project will contain:
+    
+    ```
+    MyApiProject/
+    ├── API/
+    │   ├── Controllers/ or Endpoints/
+    │   ├── Config/
+    │   └── Program.cs
+    ├── Application/
+    │   ├── UseCases/
+    │   └── Services/
+    ├── Domain/
+    │   ├── Entities/
+    │   ├── Interfaces/
+    │   └── Common/
+    ├── Infrastructure/
+    │   ├── Persistence/
+    │   └── Services/
+    └── .git/
+    ```
+  </Step>
+</Steps>
+
+## Cloning an Existing Repository
+
+You can also clone existing repositories into your Chapi workspace.
+
+<Steps>
+  <Step title="Use Clone Command">
+    Provide the repository URL and destination path:
+    
+    ```bash
+    # Via AI Assistant
+    "Clone https://github.com/username/repo.git to C:\Projects"
+    ```
+  </Step>
+
+  <Step title="Automatic Registration">
+    After cloning, Chapi automatically:
+    - Registers the project in your workspace
+    - Detects the project technology (.NET, Node.js, etc.)
+    - Scans main folders and structure
+    - Loads Git metadata
+  </Step>
+</Steps>
+
+## Project Templates
+
+Chapi supports different architectural patterns based on the template structure:
+
+<Tabs>
+  <Tab title="Ardalis Clean Architecture">
+    Projects with **Endpoints** folder use Ardalis-style architecture:
+    
+    - API layer uses `Endpoints` instead of `Controllers`
+    - Generic repository pattern
+    - Dependency injection via Scrutor auto-discovery
+    - Minimal API endpoints
+    
+    **Detection**: Chapi checks for `API/Endpoints` folder
+  </Tab>
+
+  <Tab title="Classic Clean Architecture">
+    Projects with **Controllers** folder use classic MVC architecture:
+    
+    - API layer uses `Controllers`
+    - Traditional repository pattern
+    - Manual dependency injection registration
+    - Controller-based endpoints
+    
+    **Detection**: Chapi checks for `API/Controllers` folder
+  </Tab>
+</Tabs>
+
+## Code Implementation
+
+The project creation logic is implemented in `CreateProjectUseCase.cs`:
+
+```csharp
+public async Task<Result<string>> ExecuteAsync(
+    CreateProjectRequest request, 
+    Action<string> onProgress = null)
+{
+    string targetPath = Path.Combine(
+        request.ParentDirectory, 
+        request.ProjectName
+    );
+
+    // 1. Clone template repository
+    await _gitRepository.CloneAsync(request.TemplateUrl, targetPath);
+
+    // 2. Remove original .git folder
+    DeleteDirectory(Path.Combine(targetPath, ".git"));
+
+    // 3. Rename template structure
+    string oldName = Path.GetFileNameWithoutExtension(request.TemplateUrl);
+    await _templateService.RenameTemplateAsync(
+        targetPath, oldName, request.ProjectName
+    );
+
+    // 4. Initialize new Git repository
+    await _gitRepository.InitAsync(targetPath);
+
+    // 5. Add remote if provided
+    if (!string.IsNullOrWhiteSpace(request.RemoteUrl))
+    {
+        await _gitRepository.AddRemoteAsync(
+            targetPath, "origin", request.RemoteUrl
+        );
+    }
+
+    // 6. Register in Chapi
+    await _projectRepository.AddProjectAsync(targetPath);
+
+    return Result<string>.Success(targetPath);
+}
+```
+
+## Managing Projects
+
+### Add Existing Project
+
+Add a project that wasn't created by Chapi:
+
+```bash
+# Via AI Assistant
+"Add the project at C:\MyExistingProject"
+```
+
+### List Projects
+
+View all registered projects:
+
+```bash
+# Via AI Assistant
+"List all my projects"
+```
+
+Output example:
+```
+📂 My Projects:
+• MyApiProject (C:\Projects\MyApiProject)
+• LegacyApp (C:\Work\LegacyApp)
+• TestProject (C:\Dev\TestProject)
+```
+
+### Remove Project
+
+Remove a project from Chapi workspace (doesn't delete files):
+
+```bash
+# Via AI Assistant
+"Remove current project from Chapi"
+```
+
+## Default Template
+
+Chapi uses the following default template for .NET projects:
+
+```
+https://github.com/Start-Z/CleanArchitecture-Template.git
+```
+
+This template includes:
+- Clean Architecture structure
+- Dependency Injection setup
+- Entity Framework Core integration
+- CQRS pattern support
+- Repository pattern implementation
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose the right parent directory">
+    - Use a dedicated workspace folder (e.g., `C:\Projects`)
+    - Avoid deeply nested paths
+    - Ensure you have write permissions
+  </Accordion>
+
+  <Accordion title="Project naming conventions">
+    - Use PascalCase (e.g., `MyApiProject`)
+    - Avoid special characters and spaces
+    - Choose descriptive names
+  </Accordion>
+
+  <Accordion title="Set up remote repository">
+    - Create the remote repository first (GitHub/GitLab)
+    - Provide the SSH or HTTPS URL during creation
+    - Chapi will configure the remote automatically
+  </Accordion>
+
+  <Accordion title="Verify after creation">
+    - Check that all folders are renamed correctly
+    - Verify Git initialization: `git status`
+    - Ensure dependencies resolve: `dotnet restore`
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Warning>
+  **Directory already exists**: If the target directory exists, Chapi will fail. Either:
+  - Choose a different name
+  - Delete the existing directory
+  - Use a different parent directory
+</Warning>
+
+<Warning>
+  **Template clone fails**: Ensure:
+  - You have internet connectivity
+  - The template URL is valid
+  - Git is installed and accessible
+</Warning>
+
+<Note>
+  After creating a project, Chapi automatically switches to it, loading all Git metadata and project context for the AI Assistant.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Generate Modules" icon="code" href="/guides/generating-modules">
+    Learn how to scaffold new modules using Chapi's code generation
+  </Card>
+  <Card title="Git Workflow" icon="git-alt" href="/guides/git-workflow">
+    Master Git operations within Chapi Assistant
+  </Card>
+</CardGroup>

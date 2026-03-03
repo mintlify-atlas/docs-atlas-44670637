@@ -1,0 +1,388 @@
+---
+title: Project Settings
+description: Configure project-level settings and preferences for Chapi Assistant
+---
+
+Chapi Assistant provides flexible configuration through multiple settings files that control different aspects of the application.
+
+## Configuration Files
+
+Chapi uses two main configuration files:
+
+<CardGroup cols={2}>
+  <Card title="appsettings.json" icon="gear">
+    Application-wide settings including OAuth and app configuration
+  </Card>
+  <Card title="user.api.settings.json" icon="user">
+    User-specific API keys and preferences stored in AppData
+  </Card>
+</CardGroup>
+
+## Application Settings
+
+**Location**: `~/workspace/source/Chapi/appsettings.json`
+
+This file contains application-wide configuration that applies to all users.
+
+### App Configuration
+
+<ParamField path="AppConfig.UrlGit" type="string">
+  Default Git repository URL for base templates or resources.
+  
+  **Example**: `https://gitlab.com/net-core2/api-base.git`
+</ParamField>
+
+<ParamField path="AppConfig.UpdateUrl" type="string">
+  GitHub repository URL for checking application updates.
+  
+  **Example**: `https://github.com/JPChanel/chapi-assistant`
+</ParamField>
+
+### Git Authentication Settings
+
+See [Git Authentication](/configuration/git-authentication) for detailed OAuth configuration.
+
+<ParamField path="GitAuth.GitHub" type="object">
+  GitHub OAuth application credentials and settings
+</ParamField>
+
+<ParamField path="GitAuth.GitLab" type="object">
+  GitLab OAuth application credentials and settings
+</ParamField>
+
+### Example appsettings.json
+
+```json appsettings.json
+{
+  "AppConfig": {
+    "UrlGit": "https://gitlab.com/net-core2/api-base.git",
+    "UpdateUrl": "https://github.com/JPChanel/chapi-assistant"
+  },
+  "GitAuth": {
+    "GitHub": {
+      "ClientId": "Ov23li5zo1SneHUKeXf7",
+      "ClientSecret": "your-github-secret",
+      "RedirectUri": "http://localhost:8888/callback",
+      "Scope": "repo user"
+    },
+    "GitLab": {
+      "ClientId": "your-gitlab-client-id",
+      "ClientSecret": "gloas-your-gitlab-secret",
+      "RedirectUri": "http://localhost:8891/callback",
+      "Scope": "api read_user read_repository write_repository",
+      "BaseUrl": "https://gitlab.com"
+    }
+  }
+}
+```
+
+<Warning>
+Never commit production OAuth credentials to version control. Use environment variables or user secrets for sensitive data.
+</Warning>
+
+## User Settings
+
+**Location**: `%AppData%/Chapi/user.api.settings.json`
+
+This file stores user-specific settings including API keys and preferences.
+
+### AI Provider Settings
+
+See [AI Providers](/configuration/ai-providers) for detailed AI configuration.
+
+<ParamField path="GeminiApiKey" type="string">
+  Google AI API key for Gemini models
+</ParamField>
+
+<ParamField path="OpenAiApiKey" type="string">
+  OpenAI API key for GPT models
+</ParamField>
+
+<ParamField path="ClaudeApiKey" type="string">
+  Anthropic API key for Claude models
+</ParamField>
+
+<ParamField path="PreferredAiProvider" type="string" default="Gemini">
+  Your preferred AI provider. Options: `Gemini`, `OpenAI`, `Claude`
+</ParamField>
+
+### Proxy Settings
+
+<ParamField path="ProxyEnabled" type="boolean" default={false}>
+  Enable proxy for network connections
+</ParamField>
+
+<ParamField path="ProxyUrl" type="string">
+  Proxy server URL (e.g., `http://proxy.company.com:8080`)
+</ParamField>
+
+<ParamField path="ProxyUser" type="string">
+  Proxy authentication username
+</ParamField>
+
+<ParamField path="ProxyPass" type="string">
+  Proxy authentication password
+</ParamField>
+
+### GitHub Integration
+
+<ParamField path="GitHubToken" type="string">
+  Stored GitHub OAuth access token (managed by the application)
+</ParamField>
+
+<ParamField path="GitHubUserLogin" type="string">
+  GitHub username (cached from authentication)
+</ParamField>
+
+<ParamField path="GitHubUserName" type="string">
+  GitHub display name (cached from authentication)
+</ParamField>
+
+<ParamField path="GitHubUserAvatar" type="string">
+  GitHub avatar URL (cached from authentication)
+</ParamField>
+
+### Example user.api.settings.json
+
+```json user.api.settings.json
+{
+  "GeminiApiKey": "AIzaSyD...",
+  "OpenAiApiKey": "sk-proj-...",
+  "ClaudeApiKey": "sk-ant-...",
+  "PreferredAiProvider": "Gemini",
+  "ProxyEnabled": false,
+  "ProxyUrl": "",
+  "ProxyUser": "",
+  "ProxyPass": "",
+  "GitHubToken": "",
+  "GitHubUserLogin": "",
+  "GitHubUserName": "",
+  "GitHubUserAvatar": ""
+}
+```
+
+## Settings Management
+
+The `UserSettingsService` class handles loading and saving user settings:
+
+```csharp UserSettingsService.cs
+public static class UserSettingsService
+{
+    private static readonly string AppDataPath = 
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Chapi");
+    
+    private static readonly string SettingsFilePath = 
+        Path.Combine(AppDataPath, "user.api.settings.json");
+
+    public static UserApiSettings LoadSettings()
+    {
+        if (!File.Exists(SettingsFilePath))
+        {
+            return new UserApiSettings();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(SettingsFilePath);
+            return JsonSerializer.Deserialize<UserApiSettings>(json) ?? new UserApiSettings();
+        }
+        catch (Exception)
+        {
+            return new UserApiSettings();
+        }
+    }
+
+    public static void SaveSettings(UserApiSettings settings)
+    {
+        var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(SettingsFilePath, json);
+    }
+}
+```
+
+### Features
+
+<CardGroup cols={2}>
+  <Card title="Auto-Creation" icon="folder-plus">
+    Automatically creates `%AppData%/Chapi` directory on first run
+  </Card>
+  <Card title="Graceful Fallback" icon="shield-check">
+    Returns default settings if file doesn't exist or is corrupted
+  </Card>
+  <Card title="JSON Formatting" icon="code">
+    Saves settings with indentation for readability
+  </Card>
+  <Card title="Type Safety" icon="check">
+    Strongly-typed settings model with defaults
+  </Card>
+</CardGroup>
+
+## Configuration Priority
+
+Chapi uses the following priority for settings:
+
+<Steps>
+  <Step title="User Settings (Highest)">
+    User-specific settings in `user.api.settings.json` override all others
+  </Step>
+  
+  <Step title="Application Settings">
+    Application-wide settings in `appsettings.json`
+  </Step>
+  
+  <Step title="Default Values (Lowest)">
+    Hard-coded defaults in the settings models
+  </Step>
+</Steps>
+
+## Environment-Specific Configuration
+
+For development vs. production environments, you can use:
+
+### Development
+
+```json appsettings.Development.json
+{
+  "GitAuth": {
+    "GitHub": {
+      "ClientId": "dev-client-id",
+      "ClientSecret": "dev-secret",
+      "RedirectUri": "http://localhost:8888/callback"
+    }
+  }
+}
+```
+
+### Production
+
+```json appsettings.Production.json
+{
+  "GitAuth": {
+    "GitHub": {
+      "ClientId": "prod-client-id",
+      "ClientSecret": "prod-secret",
+      "RedirectUri": "https://yourapp.com/callback"
+    }
+  }
+}
+```
+
+<Note>
+.NET automatically merges environment-specific configuration files based on the `ASPNETCORE_ENVIRONMENT` or `DOTNET_ENVIRONMENT` variable.
+</Note>
+
+## Accessing Settings in Code
+
+### Dependency Injection
+
+```csharp
+public class GitHubOAuthProvider : IGitAuthProvider
+{
+    private readonly GitHubConfig _config;
+
+    public GitHubOAuthProvider(
+        ICredentialStorageService credentialStorage,
+        HttpClient httpClient,
+        IOptions<GitAuthConfig> config)
+    {
+        _config = config.Value.GitHub;
+    }
+}
+```
+
+### Direct Access
+
+```csharp
+var settings = UserSettingsService.LoadSettings();
+var geminiKey = settings.GeminiApiKey;
+var preferredProvider = settings.PreferredAiProvider;
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Security" icon="lock">
+    Never commit API keys or secrets to version control
+  </Card>
+  <Card title="Validation" icon="circle-check">
+    Validate settings on load and provide meaningful error messages
+  </Card>
+  <Card title="Defaults" icon="sliders">
+    Always provide sensible default values
+  </Card>
+  <Card title="Documentation" icon="book">
+    Document all configuration options with examples
+  </Card>
+</CardGroup>
+
+### Security Recommendations
+
+1. **Use User Secrets** for development:
+   ```bash
+   dotnet user-secrets set "GitAuth:GitHub:ClientSecret" "your-secret"
+   ```
+
+2. **Use Environment Variables** for production:
+   ```bash
+   export GitAuth__GitHub__ClientSecret="your-secret"
+   ```
+
+3. **Encrypt Sensitive Data** at rest using Windows DPAPI or similar
+
+4. **Restrict File Permissions** on configuration files
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Settings not persisting">
+    **Possible causes**:
+    - Insufficient permissions to write to `%AppData%/Chapi`
+    - File is locked by another process
+    - Disk space issues
+    
+    **Solution**:
+    - Check folder permissions
+    - Close other instances of the application
+    - Verify available disk space
+  </Accordion>
+  
+  <Accordion title="Settings reset to defaults">
+    **Possible causes**:
+    - Corrupted JSON in settings file
+    - File encoding issues
+    
+    **Solution**:
+    - Validate JSON syntax using a JSON validator
+    - Ensure file is UTF-8 encoded
+    - Restore from backup or recreate manually
+  </Accordion>
+  
+  <Accordion title="Configuration not loading">
+    **Possible causes**:
+    - Incorrect file path
+    - Missing configuration section
+    - Deserialization errors
+    
+    **Solution**:
+    - Verify file locations match expected paths
+    - Check console/logs for deserialization errors
+    - Compare with example configurations
+  </Accordion>
+</AccordionGroup>
+
+## Related Configuration
+
+<CardGroup cols={2}>
+  <Card title="Git Authentication" icon="git" href="/configuration/git-authentication">
+    Configure GitHub and GitLab OAuth
+  </Card>
+  <Card title="AI Providers" icon="brain" href="/configuration/ai-providers">
+    Configure Gemini, OpenAI, and Claude
+  </Card>
+</CardGroup>
+
+## Source Code Reference
+
+- Settings Service: `~/workspace/source/Chapi/Infrastructure/Persistence/Settings/UserSettings.cs`
+- App Configuration: `~/workspace/source/Chapi/appsettings.json`
+- Git Auth Config: `~/workspace/source/Chapi/Infrastructure/Configuration/GitAuthConfig.cs`

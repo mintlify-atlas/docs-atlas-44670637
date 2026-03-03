@@ -1,0 +1,245 @@
+---
+title: 'Project Creation'
+description: 'Create new .NET WPF projects from templates with automatic Git initialization and customization'
+icon: 'folder-plus'
+---
+
+## Overview
+
+Chapi Assistant streamlines project creation by cloning template repositories, customizing the structure with your project name, and initializing Git version control - all in a single workflow.
+
+<Info>
+Project creation uses the `CreateProjectUseCase` (CreateProjectUseCase.cs:30) which orchestrates cloning, renaming, and Git initialization.
+</Info>
+
+## How It Works
+
+The project creation process follows these steps:
+
+<Steps>
+  <Step title="Clone Template Repository">
+    Chapi clones the specified template repository to your chosen location.
+  </Step>
+  
+  <Step title="Clean Git Metadata">
+    Removes the original `.git` folder to start fresh.
+  </Step>
+  
+  <Step title="Customize Structure">
+    Renames all project files, folders, and namespaces to match your project name.
+  </Step>
+  
+  <Step title="Initialize Git">
+    Creates a new Git repository for your project.
+  </Step>
+  
+  <Step title="Configure Remote (Optional)">
+    Associates your remote repository if provided.
+  </Step>
+  
+  <Step title="Register in Workspace">
+    Adds the project to Chapi's workspace for easy management.
+  </Step>
+</Steps>
+
+## Creating a Project
+
+<Tabs>
+  <Tab title="Basic Creation">
+    Create a new project from a template without remote repository:
+
+    ```csharp
+    var request = new CreateProjectRequest(
+        ProjectName: "MyNewApp",
+        ParentDirectory: @"C:\Projects",
+        TemplateUrl: "https://github.com/myorg/wpf-template.git",
+        RemoteUrl: null
+    );
+
+    var result = await createProjectUseCase.ExecuteAsync(request);
+    ```
+
+    <Note>
+    The `ProjectName` will be used to rename all template references throughout the codebase.
+    </Note>
+  </Tab>
+
+  <Tab title="With Remote Repository">
+    Create a project and connect it to a remote repository:
+
+    ```csharp
+    var request = new CreateProjectRequest(
+        ProjectName: "MyNewApp",
+        ParentDirectory: @"C:\Projects",
+        TemplateUrl: "https://github.com/myorg/wpf-template.git",
+        RemoteUrl: "https://github.com/myorg/mynewapp.git"
+    );
+
+    var result = await createProjectUseCase.ExecuteAsync(
+        request,
+        onProgress: (message) => Console.WriteLine(message)
+    );
+    ```
+
+    The remote repository will be configured as `origin`.
+  </Tab>
+
+  <Tab title="Progress Tracking">
+    Monitor the creation process with progress callbacks:
+
+    ```csharp
+    var result = await createProjectUseCase.ExecuteAsync(
+        request,
+        onProgress: (status) => {
+            // Status messages include:
+            // - "Clonando repositorio base..."
+            // - "Limpiando metadatos de Git..."
+            // - "Personalizando estructura del proyecto..."
+            // - "Inicializando nuevo repositorio Git..."
+            // - "Asociando repositorio remoto..."
+            // - "Registrando proyecto en Chapi..."
+            UpdateProgressBar(status);
+        }
+    );
+    ```
+  </Tab>
+</Tabs>
+
+## Request Parameters
+
+<ParamField path="ProjectName" type="string" required>
+  The name for your new project. Used to rename template files and namespaces.
+</ParamField>
+
+<ParamField path="ParentDirectory" type="string" required>
+  The directory where the project folder will be created.
+</ParamField>
+
+<ParamField path="TemplateUrl" type="string" required>
+  Git URL of the template repository to clone.
+</ParamField>
+
+<ParamField path="RemoteUrl" type="string">
+  Optional remote repository URL to associate with the new project.
+</ParamField>
+
+## Template Customization
+
+The template service automatically renames:
+
+<CardGroup cols={2}>
+  <Card title="Files & Folders" icon="folder-tree">
+    - Solution files (.sln)
+    - Project files (.csproj)
+    - Directory names
+    - File names
+  </Card>
+  
+  <Card title="Code Content" icon="code">
+    - Namespaces
+    - Assembly names
+    - Class references
+    - Configuration values
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+<Accordion title="Common Errors">
+  <AccordionGroup>
+    <Accordion title="Directory Already Exists">
+      **Error**: `El directorio ya existe: C:\Projects\MyNewApp`
+      
+      **Solution**: Choose a different project name or delete the existing directory.
+    </Accordion>
+
+    <Accordion title="Clone Failed">
+      **Error**: Clone operation fails
+      
+      **Possible Causes**:
+      - Invalid template URL
+      - Network connectivity issues
+      - Authentication required
+      
+      **Solution**: Verify the template URL and ensure you have access to the repository.
+    </Accordion>
+
+    <Accordion title="Template Rename Failed">
+      **Error**: Template renaming fails
+      
+      **Possible Causes**:
+      - File locks from IDE or file explorer
+      - Insufficient permissions
+      
+      **Solution**: Close all open files and ensure you have write permissions.
+    </Accordion>
+  </AccordionGroup>
+</Accordion>
+
+## Result Structure
+
+```csharp
+if (result.IsSuccess)
+{
+    string projectPath = result.Value;
+    // Example: "C:\\Projects\\MyNewApp"
+    Console.WriteLine($"Project created at: {projectPath}");
+}
+else
+{
+    Console.WriteLine($"Error: {result.Error}");
+}
+```
+
+<Check>
+**Success**: Returns the full path to the created project directory.
+</Check>
+
+## What Happens Next
+
+After successful creation:
+
+1. **Project is registered** in Chapi's workspace manager
+2. **Git repository is initialized** with no commits
+3. **Remote is configured** (if RemoteUrl provided)
+4. **Project is ready** for code generation and development
+
+<Tip>
+You can immediately start generating modules and code after project creation without any additional setup.
+</Tip>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Template Selection" icon="layer-group">
+    Use templates that match your architecture style (Clean Architecture, DDD, etc.)
+  </Card>
+  
+  <Card title="Naming Conventions" icon="signature">
+    Use PascalCase for project names to match C# conventions
+  </Card>
+  
+  <Card title="Remote Repository" icon="code-branch">
+    Create the remote repository before project creation for seamless setup
+  </Card>
+  
+  <Card title="Directory Organization" icon="folder-tree">
+    Keep all projects in a consistent parent directory structure
+  </Card>
+</CardGroup>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Workspace Management" icon="briefcase" href="/features/workspace-management">
+    Learn how to manage multiple projects in Chapi
+  </Card>
+  
+  <Card title="Git Management" icon="code-branch" href="/features/git-management">
+    Configure Git settings and manage version control
+  </Card>
+  
+  <Card title="Code Generation" icon="wand-magic-sparkles" href="/features/code-generation">
+    Generate modules and code in your new project
+  </Card>
+</CardGroup>

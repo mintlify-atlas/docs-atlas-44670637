@@ -1,0 +1,583 @@
+---
+title: 'Workspace Management'
+description: 'Manage multiple projects, switch between workspaces, and organize your development environment'
+icon: 'briefcase'
+---
+
+## Overview
+
+Chapi Assistant provides comprehensive workspace management to handle multiple .NET WPF projects simultaneously. Easily switch between projects, track their status, and maintain an organized development environment.
+
+<Info>
+Workspace management is built on the `IProjectRepository` interface, which persists project information and preferences.
+</Info>
+
+## Loading Projects
+
+### Get All Projects
+
+Retrieve all projects registered in your workspace:
+
+```csharp
+var result = await loadProjectsUseCase.ExecuteAsync();
+
+if (result.IsSuccess)
+{
+    var projects = result.Value;
+    foreach (var project in projects)
+    {
+        Console.WriteLine($"{project.Name} - {project.Path}");
+    }
+}
+```
+
+<Tabs>
+  <Tab title="Basic Usage">
+    Load and display all projects:
+
+    ```csharp
+    var result = await loadProjectsUseCase.ExecuteAsync();
+
+    if (result.IsSuccess)
+    {
+        var projects = result.Value;
+        
+        if (!projects.Any())
+        {
+            Console.WriteLine("No projects in workspace");
+        }
+        else
+        {
+            Console.WriteLine($"Found {projects.Count()} projects");
+        }
+    }
+    else
+    {
+        Console.WriteLine($"Error: {result.Error}");
+    }
+    ```
+  </Tab>
+
+  <Tab title="With Filtering">
+    Filter and organize loaded projects:
+
+    ```csharp
+    var result = await loadProjectsUseCase.ExecuteAsync();
+
+    if (result.IsSuccess)
+    {
+        var projects = result.Value;
+        
+        // Filter by criteria
+        var recentProjects = projects
+            .Where(p => p.LastAccessedDate > DateTime.Now.AddDays(-7))
+            .OrderByDescending(p => p.LastAccessedDate);
+        
+        var activeProjects = projects
+            .Where(p => p.IsActive);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Error Handling">
+    Handle loading errors gracefully:
+
+    ```csharp
+    try
+    {
+        var result = await loadProjectsUseCase.ExecuteAsync();
+        
+        if (!result.IsSuccess)
+        {
+            // "Error cargando proyectos: {message}"
+            LogError(result.Error);
+            ShowDefaultWorkspace();
+        }
+    }
+    catch (Exception ex)
+    {
+        // Handle critical errors
+        ShowErrorDialog(ex.Message);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Switching Projects
+
+### Switch Active Project
+
+Change the currently active project in your workspace:
+
+```csharp
+var result = await switchProjectUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\CustomerApp"
+);
+
+if (result.IsSuccess)
+{
+    var project = result.Value;
+    Console.WriteLine($"Switched to: {project.Name}");
+}
+```
+
+<ParamField path="projectPath" type="string" required>
+  Full path to the project directory to switch to.
+</ParamField>
+
+<Steps>
+  <Step title="Validate Path">
+    Ensures the project path is valid and the directory exists.
+  </Step>
+  
+  <Step title="Retrieve Project">
+    Fetches project information from the repository.
+  </Step>
+  
+  <Step title="Update Active State">
+    Marks the project as the currently active workspace.
+  </Step>
+  
+  <Step title="Return Project">
+    Returns the Project entity with all metadata.
+  </Step>
+</Steps>
+
+### Project Validation
+
+<AccordionGroup>
+  <Accordion title="Path Validation">
+    ```csharp
+    // Validates:
+    // - Path is not null or whitespace
+    // - Directory exists on filesystem
+    // - Project is registered in workspace
+
+    if (string.IsNullOrWhiteSpace(projectPath))
+        return Result<Project>.Fail("La ruta del proyecto no puede estar vacía");
+
+    if (!Directory.Exists(projectPath))
+        return Result<Project>.Fail("El directorio no existe");
+    ```
+  </Accordion>
+
+  <Accordion title="Project Existence">
+    ```csharp
+    var project = await _projectRepository.GetProjectAsync(projectPath);
+
+    if (project == null)
+        return Result<Project>.Fail("Proyecto no encontrado");
+    ```
+    
+    The project must be previously registered in the workspace.
+  </Accordion>
+</AccordionGroup>
+
+## Adding Projects
+
+### Register New Project
+
+Add an existing project to your workspace:
+
+```csharp
+var result = await addProjectUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\ExistingApp"
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Project added to workspace");
+}
+```
+
+<Tabs>
+  <Tab title="Add Single Project">
+    ```csharp
+    var result = await addProjectUseCase.ExecuteAsync(
+        @"C:\Projects\MyApp"
+    );
+
+    if (result.IsSuccess)
+    {
+        // Project is now tracked in workspace
+        await RefreshProjectList();
+    }
+    ```
+  </Tab>
+
+  <Tab title="Add Multiple Projects">
+    ```csharp
+    var projectPaths = new[]
+    {
+        @"C:\Projects\App1",
+        @"C:\Projects\App2",
+        @"C:\Projects\App3"
+    };
+
+    foreach (var path in projectPaths)
+    {
+        var result = await addProjectUseCase.ExecuteAsync(path);
+        
+        if (!result.IsSuccess)
+        {
+            Console.WriteLine($"Failed to add {path}: {result.Error}");
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="With Validation">
+    ```csharp
+    var projectPath = @"C:\Projects\NewApp";
+
+    // Pre-validate
+    if (!Directory.Exists(projectPath))
+    {
+        Console.WriteLine("Directory does not exist");
+        return;
+    }
+
+    var result = await addProjectUseCase.ExecuteAsync(projectPath);
+
+    if (!result.IsSuccess)
+    {
+        // Possible errors:
+        // - "La ruta del proyecto no puede estar vacía"
+        // - "El directorio no existe"
+        // - "Error agregando proyecto: {exception}"
+        HandleError(result.Error);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### When to Add Projects
+
+<CardGroup cols={2}>
+  <Card title="After Cloning" icon="download">
+    Add projects after cloning from Git repositories.
+  </Card>
+  
+  <Card title="Existing Projects" icon="folder-open">
+    Register existing projects not created with Chapi.
+  </Card>
+  
+  <Card title="After Creation" icon="sparkles">
+    Automatically added by `CreateProjectUseCase`.
+  </Card>
+  
+  <Card title="Imported Projects" icon="file-import">
+    Add projects moved from other machines.
+  </Card>
+</CardGroup>
+
+## Removing Projects
+
+### Unregister Project
+
+Remove a project from the workspace (doesn't delete files):
+
+```csharp
+var result = await removeProjectUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\OldApp"
+);
+```
+
+<Warning>
+Removing a project from the workspace does not delete the project files. It only unregisters it from Chapi.
+</Warning>
+
+## Project Indicators & Status
+
+### Update Project Status
+
+Update project indicators like Git status, build status, etc.:
+
+```csharp
+var result = await updateProjectIndicatorsUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp"
+);
+```
+
+This typically updates:
+- Git branch and status
+- Uncommitted changes count
+- Build status
+- Last modified time
+- Active status
+
+<Info>
+Project indicators are refreshed automatically when switching projects or after Git operations.
+</Info>
+
+## Cloning Projects
+
+### Clone from Remote Repository
+
+Clone a project and add it to the workspace:
+
+```csharp
+var result = await cloneProjectUseCase.ExecuteAsync(
+    remoteUrl: "https://github.com/myorg/myapp.git",
+    localPath: @"C:\Projects\MyApp"
+);
+```
+
+<Steps>
+  <Step title="Clone Repository">
+    Git clone from the remote URL to local path.
+  </Step>
+  
+  <Step title="Register in Workspace">
+    Automatically add the cloned project to workspace.
+  </Step>
+  
+  <Step title="Update Indicators">
+    Fetch initial project status and metadata.
+  </Step>
+  
+  <Step title="Set as Active">
+    Optionally switch to the newly cloned project.
+  </Step>
+</Steps>
+
+## Project Entity Structure
+
+```csharp
+public class Project
+{
+    public string Path { get; set; }          // Full directory path
+    public string Name { get; set; }          // Project name
+    public bool IsActive { get; set; }        // Currently active?
+    public DateTime LastAccessedDate { get; set; }
+    public string CurrentBranch { get; set; } // Git branch
+    public int UncommittedChanges { get; set; }
+    public string BuildStatus { get; set; }
+    // ... additional properties
+}
+```
+
+## Workspace Workflows
+
+<Tabs>
+  <Tab title="Daily Workflow">
+    ```csharp
+    // 1. Load all projects
+    var projects = await loadProjectsUseCase.ExecuteAsync();
+
+    // 2. Switch to project you want to work on
+    await switchProjectUseCase.ExecuteAsync(
+        @"C:\Projects\CustomerApp"
+    );
+
+    // 3. Work on the project...
+    // Generate code, commit changes, etc.
+
+    // 4. Update project status
+    await updateProjectIndicatorsUseCase.ExecuteAsync(
+        currentProjectPath
+    );
+
+    // 5. Switch to another project when needed
+    await switchProjectUseCase.ExecuteAsync(
+        @"C:\Projects\OrderApp"
+    );
+    ```
+  </Tab>
+
+  <Tab title="New Project Setup">
+    ```csharp
+    // Option 1: Create new project
+    var createResult = await createProjectUseCase.ExecuteAsync(
+        new CreateProjectRequest(
+            "NewApp",
+            @"C:\Projects",
+            "https://github.com/myorg/template.git"
+        )
+    );
+    // Automatically added to workspace
+
+    // Option 2: Clone existing project
+    var cloneResult = await cloneProjectUseCase.ExecuteAsync(
+        "https://github.com/myorg/app.git",
+        @"C:\Projects\App"
+    );
+    // Automatically added to workspace
+
+    // Option 3: Add existing project
+    var addResult = await addProjectUseCase.ExecuteAsync(
+        @"C:\Projects\ExistingApp"
+    );
+    ```
+  </Tab>
+
+  <Tab title="Cleanup">
+    ```csharp
+    // Get all projects
+    var result = await loadProjectsUseCase.ExecuteAsync();
+    var projects = result.Value;
+
+    // Find old or inactive projects
+    var oldProjects = projects
+        .Where(p => p.LastAccessedDate < DateTime.Now.AddMonths(-6))
+        .ToList();
+
+    // Remove from workspace
+    foreach (var project in oldProjects)
+    {
+        await removeProjectUseCase.ExecuteAsync(project.Path);
+    }
+
+    // Optionally delete directories
+    // (Handle this carefully!)
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+<CodeGroup>
+```csharp Load Projects
+var result = await loadProjectsUseCase.ExecuteAsync();
+
+if (!result.IsSuccess)
+{
+    // "Error cargando proyectos: {message}"
+    LogError(result.Error);
+    
+    // Fallback to empty workspace
+    var emptyProjects = Enumerable.Empty<Project>();
+}
+```
+
+```csharp Switch Project
+var result = await switchProjectUseCase.ExecuteAsync(path);
+
+if (!result.IsSuccess)
+{
+    // Possible errors:
+    // - "La ruta del proyecto no puede estar vacía"
+    // - "El directorio no existe"
+    // - "Proyecto no encontrado"
+    
+    ShowError(result.Error);
+    // Stay on current project
+}
+```
+
+```csharp Add Project
+var result = await addProjectUseCase.ExecuteAsync(path);
+
+if (!result.IsSuccess)
+{
+    // Possible errors:
+    // - "La ruta del proyecto no puede estar vacía"
+    // - "El directorio no existe"
+    // - "Error agregando proyecto: {exception}"
+    
+    ShowError(result.Error);
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Project Organization">
+    - Keep all projects in a consistent root directory (e.g., `C:\Projects`)
+    - Use meaningful project names
+    - Remove inactive projects from workspace
+    - Regularly update project indicators
+  </Accordion>
+
+  <Accordion title="Switching Projects">
+    - Commit or stash changes before switching
+    - Update project status after significant changes
+    - Use project switch as a context boundary
+    - Close unnecessary file handles before switching
+  </Accordion>
+
+  <Accordion title="Workspace Maintenance">
+    - Periodically review and clean up old projects
+    - Keep workspace list manageable (< 20 active projects)
+    - Archive completed projects
+    - Back up workspace configuration
+  </Accordion>
+
+  <Accordion title="Performance">
+    - Load projects asynchronously on startup
+    - Cache project list in memory
+    - Update indicators on-demand, not constantly
+    - Use lazy loading for project details
+  </Accordion>
+</AccordionGroup>
+
+## Project Lifecycle
+
+<Steps>
+  <Step title="Creation or Addition">
+    Project is created via `CreateProjectUseCase` or added via `AddProjectUseCase`.
+  </Step>
+  
+  <Step title="Registration">
+    Project is registered in the workspace repository with metadata.
+  </Step>
+  
+  <Step title="Active Development">
+    Switch to project, make changes, commit, generate code, etc.
+  </Step>
+  
+  <Step title="Status Updates">
+    Indicators are updated after operations (commits, builds, etc.).
+  </Step>
+  
+  <Step title="Archival or Removal">
+    Remove from workspace when no longer needed (files remain).
+  </Step>
+</Steps>
+
+## Integration with Other Features
+
+<CardGroup cols={2}>
+  <Card title="Project Creation" icon="folder-plus" href="/features/project-creation">
+    Created projects are automatically added to workspace
+  </Card>
+  
+  <Card title="Git Management" icon="code-branch" href="/features/git-management">
+    Git operations update project indicators and status
+  </Card>
+  
+  <Card title="Code Generation" icon="wand-magic-sparkles" href="/features/code-generation">
+    Code generation operates on the active project
+  </Card>
+</CardGroup>
+
+## Deployment & Releases
+
+### Deploy Project Release
+
+Deploy a project release to production:
+
+```csharp
+var result = await deployProjectReleaseUseCase.ExecuteAsync(
+    projectPath: @"C:\Projects\MyApp",
+    version: "1.0.0",
+    environment: "Production"
+);
+```
+
+<Info>
+Project deployment is integrated with workspace management to track release history and status.
+</Info>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Project Creation" icon="folder-plus" href="/features/project-creation">
+    Create new projects that get added to workspace
+  </Card>
+  
+  <Card title="Git Management" icon="code-branch" href="/features/git-management">
+    Manage version control for workspace projects
+  </Card>
+</CardGroup>

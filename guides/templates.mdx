@@ -1,0 +1,478 @@
+---
+title: Templates
+description: Understand and customize Clean Architecture templates for project scaffolding
+---
+
+Chapi Assistant uses Git-based templates to scaffold new projects with Clean Architecture. Templates provide a consistent starting point with proper folder structure, dependencies, and configuration.
+
+## Default Template
+
+Chapi's default template for .NET projects:
+
+```
+https://github.com/Start-Z/CleanArchitecture-Template.git
+```
+
+This template provides:
+- **Clean Architecture** structure
+- **Dependency Injection** configuration
+- **Entity Framework Core** setup
+- **CQRS pattern** implementation
+- **Repository pattern** interfaces
+
+## Template Structure
+
+A Chapi-compatible template follows this structure:
+
+```
+CleanArchitecture-Template/
+├── API/
+│   ├── Controllers/          # Classic architecture
+│   │   └── [Module]/
+│   │       └── [Module]Controller.cs
+│   ├── Endpoints/            # Ardalis architecture
+│   │   └── [Module]/
+│   │       ├── Get.cs
+│   │       ├── Post.cs
+│   │       └── GetById.cs
+│   ├── Config/
+│   │   ├── DependencyInjection.cs
+│   │   └── DatabaseConfiguration.cs
+│   ├── Program.cs
+│   └── appsettings.json
+├── Application/
+│   ├── UseCases/
+│   ├── Services/
+│   └── DTOs/
+├── Domain/
+│   ├── Entities/
+│   ├── Interfaces/
+│   ├── Common/
+│   │   └── Result.cs
+│   └── Enums/
+├── Infrastructure/
+│   ├── Persistence/
+│   │   ├── [DbName]Context.cs
+│   │   └── Repositories/
+│   ├── Services/
+│   └── Configuration/
+└── Tests/
+    ├── UnitTests/
+    └── IntegrationTests/
+```
+
+## Template Processing
+
+When creating a project from a template, Chapi performs these steps:
+
+<Steps>
+  <Step title="Clone Template">
+    The template repository is cloned:
+    
+    ```csharp
+    var cloneResult = await _gitRepository.CloneAsync(
+        templateUrl, 
+        targetPath
+    );
+    ```
+    
+    Example:
+    ```bash
+    git clone https://github.com/Start-Z/CleanArchitecture-Template.git \
+        C:\Projects\MyApiProject
+    ```
+  </Step>
+
+  <Step title="Remove Git Metadata">
+    Original Git history is removed:
+    
+    ```csharp
+    string gitPath = Path.Combine(targetPath, ".git");
+    if (Directory.Exists(gitPath))
+    {
+        DeleteDirectory(gitPath);
+    }
+    ```
+    
+    This ensures your project starts with a clean Git history.
+  </Step>
+
+  <Step title="Rename Template Structure">
+    The template service renames all references:
+    
+    ```csharp
+    string oldName = Path.GetFileNameWithoutExtension(templateUrl);
+    // oldName: "CleanArchitecture-Template"
+    // newName: "MyApiProject"
+    
+    await _templateService.RenameTemplateAsync(
+        targetPath, 
+        oldName, 
+        projectName, 
+        onProgress
+    );
+    ```
+    
+    This includes:
+    - **Folder names**: `CleanArchitecture-Template.API` → `MyApiProject.API`
+    - **File names**: `CleanArchitecture-Template.csproj` → `MyApiProject.csproj`
+    - **Namespaces**: `using CleanArchitecture-Template.Domain` → `using MyApiProject.Domain`
+    - **References**: All project references updated
+  </Step>
+
+  <Step title="Initialize Git Repository">
+    A fresh Git repository is created:
+    
+    ```csharp
+    await _gitRepository.InitAsync(targetPath);
+    ```
+    
+    This creates a new `.git` folder and initial commit.
+  </Step>
+
+  <Step title="Add Remote Origin">
+    If a remote URL was provided:
+    
+    ```csharp
+    if (!string.IsNullOrWhiteSpace(remoteUrl))
+    {
+        await _gitRepository.AddRemoteAsync(
+            targetPath, 
+            "origin", 
+            remoteUrl
+        );
+    }
+    ```
+  </Step>
+</Steps>
+
+## Architecture Detection
+
+Chapi detects the template's architecture style:
+
+```csharp
+string apiProjectPath = FindApiDirectory.GetDirectory(projectDirectory);
+bool isArdalis = Directory.Exists(
+    Path.Combine(apiProjectPath, "Endpoints")
+);
+string apiSubFolder = isArdalis ? "Endpoints" : "Controllers";
+```
+
+<Tabs>
+  <Tab title="Ardalis Detection">
+    If `API/Endpoints/` folder exists:
+    
+    ```
+    ✓ Ardalis (Endpoints) architecture detected
+    ✓ Using generic repository pattern
+    ✓ Scrutor auto-discovery enabled
+    ✓ Minimal API style
+    ```
+    
+    Generated modules will use:
+    - FastEndpoints or Ardalis.Endpoints
+    - `IRepository<T>` generic interface
+    - Automatic DI registration
+  </Tab>
+
+  <Tab title="Classic Detection">
+    If `API/Controllers/` folder exists:
+    
+    ```
+    ✓ Classic (Controllers) architecture detected
+    ✓ Using specific repository interfaces
+    ✓ Manual DI registration
+    ✓ MVC controller style
+    ```
+    
+    Generated modules will use:
+    - Traditional controllers
+    - `IProductRepository`, `IOrderRepository`, etc.
+    - Manual DI in `DependencyInjection.cs`
+  </Tab>
+</Tabs>
+
+## Creating Custom Templates
+
+You can create your own templates:
+
+<Steps>
+  <Step title="Create Repository">
+    1. Create a new Git repository (GitHub/GitLab)
+    2. Name it descriptively (e.g., `MyCompany-DDD-Template`)
+    3. Make it public or accessible to Chapi
+  </Step>
+
+  <Step title="Define Structure">
+    Create your preferred structure:
+    
+    ```
+    MyTemplate/
+    ├── src/
+    │   ├── MyTemplate.API/
+    │   ├── MyTemplate.Application/
+    │   ├── MyTemplate.Domain/
+    │   └── MyTemplate.Infrastructure/
+    ├── tests/
+    │   └── MyTemplate.Tests/
+    ├── docs/
+    ├── .gitignore
+    └── README.md
+    ```
+  </Step>
+
+  <Step title="Add Core Files">
+    Include essential files:
+    
+    **API/Program.cs**:
+    ```csharp
+    var builder = WebApplication.CreateBuilder(args);
+    
+    builder.Services.AddControllers();
+    builder.Services.AddApplicationServices();
+    builder.Services.AddInfrastructureServices();
+    
+    var app = builder.Build();
+    app.MapControllers();
+    app.Run();
+    ```
+    
+    **Domain/Common/Result.cs**:
+    ```csharp
+    public class Result<T>
+    {
+        public bool IsSuccess { get; set; }
+        public T Data { get; set; }
+        public string Error { get; set; }
+        
+        public static Result<T> Success(T data) => 
+            new() { IsSuccess = true, Data = data };
+        
+        public static Result<T> Fail(string error) => 
+            new() { IsSuccess = false, Error = error };
+    }
+    ```
+  </Step>
+
+  <Step title="Configure Dependencies">
+    Add NuGet packages:
+    
+    ```xml
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Ardalis.Result" Version="8.0.0" />
+    ```
+  </Step>
+
+  <Step title="Use Your Template">
+    Specify your template URL when creating projects:
+    
+    ```csharp
+    var request = new CreateProjectRequest(
+        projectName: "MyNewProject",
+        parentDirectory: "C:\\Projects",
+        templateUrl: "https://github.com/YourOrg/MyTemplate.git",
+        remoteUrl: "https://github.com/YourOrg/MyNewProject.git"
+    );
+    ```
+  </Step>
+</Steps>
+
+## Template Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use placeholders">
+    Don't hardcode project names in templates:
+    
+    **Bad**:
+    ```csharp
+    namespace MySpecificProject.Domain;
+    ```
+    
+    **Good**:
+    ```csharp
+    namespace TemplateName.Domain;
+    // Will be renamed to: YourProject.Domain
+    ```
+  </Accordion>
+
+  <Accordion title="Include README">
+    Provide documentation:
+    
+    ```markdown
+    # Project Template
+    
+    ## Structure
+    - API: Web API layer
+    - Application: Business logic
+    - Domain: Core entities
+    - Infrastructure: External dependencies
+    
+    ## Getting Started
+    1. Restore packages: `dotnet restore`
+    2. Update connection string in appsettings.json
+    3. Run migrations: `dotnet ef database update`
+    4. Start: `dotnet run`
+    ```
+  </Accordion>
+
+  <Accordion title="Minimal dependencies">
+    Include only essential packages:
+    - Entity Framework Core
+    - Dependency Injection
+    - Common libraries (e.g., Ardalis.Result)
+    
+    Let users add specific packages as needed.
+  </Accordion>
+
+  <Accordion title="Configuration examples">
+    Provide sample configurations:
+    
+    ```json
+    // appsettings.json
+    {
+      "ConnectionStrings": {
+        "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=MyDb;Trusted_Connection=True;"
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information"
+        }
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Template Variants
+
+<Tabs>
+  <Tab title="Clean Architecture">
+    Traditional Clean Architecture:
+    
+    ```
+    ├── API (Presentation)
+    ├── Application (Use Cases)
+    ├── Domain (Entities, Interfaces)
+    └── Infrastructure (Data, External)
+    ```
+    
+    **Best for**: Enterprise applications, maintainability
+  </Tab>
+
+  <Tab title="Hexagonal Architecture">
+    Ports and adapters:
+    
+    ```
+    ├── API (Primary Adapter)
+    ├── Core (Domain + Ports)
+    └── Infrastructure (Secondary Adapters)
+    ```
+    
+    **Best for**: Highly decoupled systems
+  </Tab>
+
+  <Tab title="Vertical Slice">
+    Feature-based organization:
+    
+    ```
+    ├── Features/
+    │   ├── Products/
+    │   │   ├── CreateProduct.cs
+    │   │   ├── GetProduct.cs
+    │   │   └── UpdateProduct.cs
+    │   └── Orders/
+    │       ├── CreateOrder.cs
+    │       └── GetOrder.cs
+    └── Shared/
+    ```
+    
+    **Best for**: CQRS, rapid development
+  </Tab>
+
+  <Tab title="Microservices">
+    Service-oriented:
+    
+    ```
+    ├── src/
+    │   ├── Services/
+    │   │   ├── Product.API/
+    │   │   ├── Order.API/
+    │   │   └── User.API/
+    │   └── Shared/
+    │       └── Common/
+    └── gateway/
+    ```
+    
+    **Best for**: Distributed systems, scalability
+  </Tab>
+</Tabs>
+
+## Template Registry
+
+Commonly used templates:
+
+<CardGroup cols={2}>
+  <Card title="Chapi Default" icon="layer-group">
+    ```
+    https://github.com/Start-Z/
+    CleanArchitecture-Template.git
+    ```
+    Clean Architecture with Controllers/Endpoints support
+  </Card>
+
+  <Card title="Custom Template" icon="code">
+    Create your own template repository and use its URL during project creation
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<Warning>
+  **Template clone fails**: Ensure:
+  - Repository is public or you have access
+  - URL is correct (ends with `.git`)
+  - Internet connection is stable
+</Warning>
+
+<Warning>
+  **Rename fails**: Ensure template uses consistent naming conventions (template name in all files/folders)
+</Warning>
+
+<Warning>
+  **Build fails after creation**: 
+  - Restore NuGet packages: `dotnet restore`
+  - Check for missing dependencies
+  - Verify .NET SDK version compatibility
+</Warning>
+
+## Template Validation
+
+Before using a template, verify:
+
+```bash
+# Clone template locally
+git clone https://github.com/YourOrg/YourTemplate.git
+cd YourTemplate
+
+# Test build
+dotnet restore
+dotnet build
+
+# Check structure
+tree /F
+
+# Test rename manually
+# (rename folders and update namespaces)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Creating Projects" icon="folder-plus" href="/guides/creating-projects">
+    Learn how to create projects from templates
+  </Card>
+  <Card title="Generating Modules" icon="code" href="/guides/generating-modules">
+    Scaffold modules in your template-based project
+  </Card>
+</CardGroup>

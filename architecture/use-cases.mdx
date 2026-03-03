@@ -1,0 +1,614 @@
+---
+title: 'Use Cases'
+description: 'Understanding the Use Case pattern in Chapi Assistant'
+---
+
+## What are Use Cases?
+
+A **Use Case** is a class that encapsulates a single business operation or user story. It represents one thing the user wants to accomplish in the application.
+
+## Purpose
+
+Use Cases serve as the **orchestration layer** between the presentation and domain. They:
+
+- Coordinate business logic
+- Validate inputs
+- Call domain services and repositories
+- Transform data between layers
+- Handle cross-cutting concerns (logging, notifications)
+
+## Benefits
+
+- **Single Responsibility**: Each Use Case does one thing
+- **Testability**: Easy to unit test with mocks
+- **Reusability**: Can be called from multiple ViewModels or contexts
+- **Clear Intent**: Name describes the business operation
+- **Independence**: Not coupled to UI framework
+
+## Structure
+
+A typical Use Case follows this pattern:
+
+```csharp
+public class [Action][Entity]UseCase
+{
+    // 1. Dependencies (injected)
+    private readonly IRepository _repository;
+    private readonly IService _service;
+    
+    // 2. Constructor injection
+    public [Action][Entity]UseCase(IRepository repository, IService service)
+    {
+        _repository = repository;
+        _service = service;
+    }
+    
+    // 3. Execute method
+    public async Task<Result<T>> ExecuteAsync([Action]Request request)
+    {
+        // Validation
+        // Business logic
+        // Return result
+    }
+}
+```
+
+## Use Case Categories
+
+Chapi Assistant organizes Use Cases by domain area:
+
+### Git Operations
+
+**Location**: `Application/UseCases/Git/`
+
+- `CommitChangesUseCase` - Create a commit
+- `PushChangesUseCase` - Push to remote
+- `PullChangesUseCase` - Pull from remote
+- `FetchChangesUseCase` - Fetch from remote
+- `CreateBranchUseCase` - Create a new branch
+- `SwitchBranchUseCase` - Switch branches
+- `CreateTagUseCase` - Create a tag
+- `DeleteTagUseCase` - Delete a tag
+- `LoadChangesUseCase` - Load file changes
+- `GetBranchesUseCase` - Get branch list
+- `DiscardChangesUseCase` - Discard uncommitted changes
+
+### Code Generation
+
+**Location**: `Application/UseCases/CodeGeneration/`
+
+- `GenerateModuleUseCase` - Generate a complete module
+- `AddApiControllerUseCase` - Add API controller
+- `AddApiEndpointUseCase` - Add API endpoint
+- `AddApplicationMethodUseCase` - Add application layer method
+- `AddDomainMethodUseCase` - Add domain layer method
+- `AddInfrastructureMethodUseCase` - Add infrastructure method
+- `AddDependencyInjectionUseCase` - Add DI registration
+
+### AI Operations
+
+**Location**: `Application/UseCases/AI/`
+
+- `GenerateCommitMessageUseCase` - Generate AI commit message
+- `GenerateSqlQueryUseCase` - Generate SQL from natural language
+- `SendChatMessageUseCase` - Send message to AI assistant
+
+### Project Management
+
+**Location**: `Application/UseCases/Projects/`
+
+- `CreateProjectUseCase` - Create new project
+- `LoadProjectUseCase` - Load existing project
+- `CloneProjectUseCase` - Clone from Git repository
+
+### Authentication
+
+**Location**: `Application/UseCases/Auth/`
+
+- `LoginGitHubUseCase` - Authenticate with GitHub
+
+## Detailed Examples
+
+### Example 1: CommitChangesUseCase
+
+```csharp
+namespace Chapi.Application.UseCases.Git;
+
+// Request DTO
+public class CommitRequest
+{
+    public string ProjectPath { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public IEnumerable<string> Files { get; set; } = Enumerable.Empty<string>();
+}
+
+// Use Case implementation
+public class CommitChangesUseCase
+{
+    private readonly IGitRepository _gitRepo;
+    private readonly INotificationService _notifications;
+    
+    public CommitChangesUseCase(
+        IGitRepository gitRepo,
+        INotificationService notifications)
+    {
+        _gitRepo = gitRepo;
+        _notifications = notifications;
+    }
+    
+    public async Task<Result<GitCommit>> ExecuteAsync(CommitRequest request)
+    {
+        // 1. Validate input
+        var validation = Validate(request);
+        if (!validation.IsSuccess)
+        {
+            _notifications.ShowWarning(validation.Error);
+            return Result<GitCommit>.Fail(validation.Error);
+        }
+        
+        // 2. Execute business operation
+        var result = await _gitRepo.CommitAsync(
+            request.ProjectPath,
+            request.Message,
+            request.Files);
+        
+        // 3. Handle result and notify user
+        if (result.IsSuccess)
+        {
+            _notifications.ShowSuccess($"Commit realizado: {request.Message}");
+        }
+        else
+        {
+            _notifications.ShowError($"Error al hacer commit: {result.Error}");
+        }
+        
+        return result;
+    }
+    
+    private Result Validate(CommitRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProjectPath))
+            return Result.Fail("Ruta de proyecto invalida");
+        
+        if (!Directory.Exists(request.ProjectPath))
+            return Result.Fail("El proyecto no existe");
+        
+        if (string.IsNullOrWhiteSpace(request.Message))
+            return Result.Fail("Debes escribir un mensaje de commit");
+        
+        if (!request.Files.Any())
+            return Result.Fail("No hay archivos seleccionados para hacer commit");
+        
+        return Result.Success();
+    }
+}
+```
+
+### Example 2: CreateBranchUseCase
+
+```csharp
+namespace Chapi.Application.UseCases.Git;
+
+public class CreateBranchRequest
+{
+    public string ProjectPath { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+    public string? FromCommitOrBranch { get; set; }
+}
+
+public class CreateBranchUseCase
+{
+    private readonly IGitRepository _gitRepo;
+    private readonly INotificationService _notifications;
+    private readonly ILogger _logger;
+    
+    public CreateBranchUseCase(
+        IGitRepository gitRepo,
+        INotificationService notifications,
+        ILogger logger)
+    {
+        _gitRepo = gitRepo;
+        _notifications = notifications;
+        _logger = logger;
+    }
+    
+    public async Task<Result> ExecuteAsync(CreateBranchRequest request)
+    {
+        try
+        {
+            // Validate branch name
+            if (!IsValidBranchName(request.BranchName))
+            {
+                var error = "Nombre de rama invalido";
+                _notifications.ShowWarning(error);
+                return Result.Fail(error);
+            }
+            
+            // Create branch
+            var result = await _gitRepo.CreateBranchAsync(
+                request.ProjectPath,
+                request.BranchName,
+                request.FromCommitOrBranch);
+            
+            // Log and notify
+            if (result.IsSuccess)
+            {
+                _logger.Info($"Branch created: {request.BranchName}");
+                _notifications.ShowSuccess($"Rama '{request.BranchName}' creada");
+            }
+            else
+            {
+                _logger.Error($"Failed to create branch: {result.Error}");
+                _notifications.ShowError(result.Error);
+            }
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Unexpected error: {ex.Message}");
+            return Result.Fail($"Error inesperado: {ex.Message}");
+        }
+    }
+    
+    private bool IsValidBranchName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        if (name.Contains(" ")) return false;
+        if (name.Contains("..")) return false;
+        return true;
+    }
+}
+```
+
+### Example 3: GenerateCommitMessageUseCase
+
+```csharp
+namespace Chapi.Application.UseCases.AI;
+
+public class GenerateCommitMessageRequest
+{
+    public string ProjectPath { get; set; } = string.Empty;
+    public IEnumerable<FileChange> Changes { get; set; } = Enumerable.Empty<FileChange>();
+}
+
+public class GenerateCommitMessageUseCase
+{
+    private readonly IGitRepository _gitRepo;
+    private readonly IAIChatClient _aiClient;
+    private readonly INotificationService _notifications;
+    
+    public GenerateCommitMessageUseCase(
+        IGitRepository gitRepo,
+        IAIChatClient aiClient,
+        INotificationService notifications)
+    {
+        _gitRepo = gitRepo;
+        _aiClient = aiClient;
+        _notifications = notifications;
+    }
+    
+    public async Task<Result<string>> ExecuteAsync(GenerateCommitMessageRequest request)
+    {
+        try
+        {
+            // Get diff for changes
+            var diffs = new List<string>();
+            foreach (var change in request.Changes.Take(10)) // Limit to avoid token limits
+            {
+                var diff = await _gitRepo.GetDiffAsync(request.ProjectPath, change.FilePath);
+                if (!string.IsNullOrEmpty(diff))
+                    diffs.Add($"File: {change.FilePath}\n{diff}");
+            }
+            
+            if (!diffs.Any())
+                return Result<string>.Fail("No changes to analyze");
+            
+            // Build prompt
+            var prompt = BuildPrompt(diffs);
+            
+            // Call AI
+            var response = await _aiClient.SendMessageAsync(prompt);
+            
+            if (string.IsNullOrWhiteSpace(response))
+                return Result<string>.Fail("AI did not return a message");
+            
+            _notifications.ShowSuccess("Commit message generated");
+            return Result<string>.Success(response.Trim());
+        }
+        catch (Exception ex)
+        {
+            _notifications.ShowError($"Error generating commit message: {ex.Message}");
+            return Result<string>.Fail(ex.Message);
+        }
+    }
+    
+    private string BuildPrompt(List<string> diffs)
+    {
+        var diffText = string.Join("\n\n", diffs);
+        return $@"Analyze the following git diff and generate a concise, meaningful commit message.
+Follow conventional commits format (feat:, fix:, refactor:, etc.).
+
+Diff:
+{diffText}
+
+Commit message:";
+    }
+}
+```
+
+## Usage in ViewModels
+
+ViewModels consume Use Cases through dependency injection:
+
+```csharp
+public class ChangesViewModel : ViewModelBase
+{
+    private readonly CommitChangesUseCase _commitUseCase;
+    private readonly LoadChangesUseCase _loadChangesUseCase;
+    private readonly GenerateCommitMessageUseCase _generateMessageUseCase;
+    
+    public ChangesViewModel(
+        CommitChangesUseCase commitUseCase,
+        LoadChangesUseCase loadChangesUseCase,
+        GenerateCommitMessageUseCase generateMessageUseCase)
+    {
+        _commitUseCase = commitUseCase;
+        _loadChangesUseCase = loadChangesUseCase;
+        _generateMessageUseCase = generateMessageUseCase;
+        
+        CommitCommand = new RelayCommand(CommitAsync, CanCommit);
+        GenerateMessageCommand = new RelayCommand(GenerateMessageAsync);
+    }
+    
+    private async Task CommitAsync()
+    {
+        var request = new CommitRequest
+        {
+            ProjectPath = CurrentProjectPath,
+            Message = CommitMessage,
+            Files = SelectedFiles
+        };
+        
+        var result = await _commitUseCase.ExecuteAsync(request);
+        
+        if (result.IsSuccess)
+        {
+            CommitMessage = string.Empty;
+            await LoadChangesAsync();
+        }
+    }
+    
+    private async Task GenerateMessageAsync()
+    {
+        var request = new GenerateCommitMessageRequest
+        {
+            ProjectPath = CurrentProjectPath,
+            Changes = SelectedChanges
+        };
+        
+        var result = await _generateMessageUseCase.ExecuteAsync(request);
+        
+        if (result.IsSuccess)
+            CommitMessage = result.Data;
+    }
+}
+```
+
+## Testing Use Cases
+
+Use Cases are highly testable because they depend on interfaces:
+
+```csharp
+using Xunit;
+using Moq;
+
+public class CommitChangesUseCaseTests
+{
+    private readonly Mock<IGitRepository> _mockGitRepo;
+    private readonly Mock<INotificationService> _mockNotifications;
+    private readonly CommitChangesUseCase _useCase;
+    
+    public CommitChangesUseCaseTests()
+    {
+        _mockGitRepo = new Mock<IGitRepository>();
+        _mockNotifications = new Mock<INotificationService>();
+        _useCase = new CommitChangesUseCase(_mockGitRepo.Object, _mockNotifications.Object);
+    }
+    
+    [Fact]
+    public async Task ExecuteAsync_WithValidRequest_ShouldCommitSuccessfully()
+    {
+        // Arrange
+        var request = new CommitRequest
+        {
+            ProjectPath = "C:\\Projects\\Test",
+            Message = "Test commit",
+            Files = new[] { "file1.cs", "file2.cs" }
+        };
+        
+        _mockGitRepo
+            .Setup(r => r.CommitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(Result<GitCommit>.Success(new GitCommit
+            {
+                Hash = "abc123",
+                Message = "Test commit"
+            }));
+        
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+        
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal("abc123", result.Data.Hash);
+        
+        _mockGitRepo.Verify(r => r.CommitAsync(
+            "C:\\Projects\\Test",
+            "Test commit",
+            It.IsAny<IEnumerable<string>>()), Times.Once);
+        
+        _mockNotifications.Verify(n => n.ShowSuccess(It.IsAny<string>()), Times.Once);
+    }
+    
+    [Fact]
+    public async Task ExecuteAsync_WithEmptyMessage_ShouldReturnError()
+    {
+        // Arrange
+        var request = new CommitRequest
+        {
+            ProjectPath = "C:\\Projects\\Test",
+            Message = "",
+            Files = new[] { "file1.cs" }
+        };
+        
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+        
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("mensaje", result.Error.ToLower());
+        
+        _mockGitRepo.Verify(r => r.CommitAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<IEnumerable<string>>()), Times.Never);
+    }
+    
+    [Fact]
+    public async Task ExecuteAsync_WhenGitFails_ShouldReturnError()
+    {
+        // Arrange
+        var request = new CommitRequest
+        {
+            ProjectPath = "C:\\Projects\\Test",
+            Message = "Test commit",
+            Files = new[] { "file1.cs" }
+        };
+        
+        _mockGitRepo
+            .Setup(r => r.CommitAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(Result<GitCommit>.Fail("Git error"));
+        
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+        
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("Git error", result.Error);
+        
+        _mockNotifications.Verify(n => n.ShowError(It.IsAny<string>()), Times.Once);
+    }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="One Use Case, One Responsibility">
+    Each Use Case should represent a single business operation. If a Use Case is doing multiple things, split it.
+    
+    ```csharp
+    // ✅ Good: Focused responsibility
+    public class CommitChangesUseCase { }
+    public class PushChangesUseCase { }
+    
+    // ❌ Bad: Too many responsibilities
+    public class GitOperationsUseCase { }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use Request/Response DTOs">
+    Define request and response objects for clarity:
+    
+    ```csharp
+    public class CommitRequest { }
+    public class CommitResponse { }
+    public async Task<Result<CommitResponse>> ExecuteAsync(CommitRequest request)
+    ```
+  </Accordion>
+  
+  <Accordion title="Validate Inputs">
+    Always validate inputs before executing business logic:
+    
+    ```csharp
+    var validation = Validate(request);
+    if (!validation.IsSuccess)
+        return Result.Fail(validation.Error);
+    ```
+  </Accordion>
+  
+  <Accordion title="Return Results, Not Exceptions">
+    Use the Result pattern for expected failures. Reserve exceptions for unexpected errors:
+    
+    ```csharp
+    // ✅ Good
+    return Result<T>.Fail("Validation error");
+    
+    // ❌ Bad
+    throw new ValidationException("Validation error");
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep Use Cases Pure">
+    Use Cases should not contain UI logic or framework-specific code:
+    
+    ```csharp
+    // ✅ Good: Framework agnostic
+    _notifications.ShowSuccess("Commit successful");
+    
+    // ❌ Bad: UI framework dependency
+    MessageBox.Show("Commit successful");
+    ```
+  </Accordion>
+  
+  <Accordion title="Log Important Operations">
+    Use structured logging for debugging and auditing:
+    
+    ```csharp
+    _logger.Info($"Creating branch: {request.BranchName}");
+    _logger.Error($"Failed to commit: {result.Error}");
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Use Case Naming Conventions
+
+- Use verb + noun: `CreateBranch`, `CommitChanges`, `LoadHistory`
+- Add `UseCase` suffix: `CreateBranchUseCase`
+- Be specific: `GenerateCommitMessage` not `Generate`
+- Follow domain language: Use business terms users understand
+
+## Dependency Injection Registration
+
+Register Use Cases as `Transient` in `App.xaml.cs`:
+
+```csharp
+private void ConfigureServices(IServiceCollection services)
+{
+    // Use Cases are transient - new instance per request
+    services.AddTransient<CommitChangesUseCase>();
+    services.AddTransient<CreateBranchUseCase>();
+    services.AddTransient<GenerateCommitMessageUseCase>();
+    // ...
+}
+```
+
+## Summary
+
+Use Cases are the **heart of business logic** in Clean Architecture:
+
+- Each represents one user operation
+- Orchestrates between domain and infrastructure
+- Highly testable through dependency injection
+- Reusable across different UI contexts
+- Independent of frameworks and UI
+
+<Tip>
+  When adding a new feature, start by creating a Use Case. This forces you to think about the business operation independently of how it will be presented in the UI.
+</Tip>
+
+## Related Documentation
+
+- [Architecture Overview](/architecture/overview)
+- [Clean Architecture](/architecture/clean-architecture)
+- [Layer Details](/architecture/layers)

@@ -1,0 +1,457 @@
+---
+title: Generating Modules
+description: Scaffold complete CRUD modules with automatic code generation across all layers
+---
+
+Chapi Assistant includes a powerful code generator that creates complete CRUD modules following Clean Architecture principles. It automatically detects your project structure and generates code for all layers.
+
+## Understanding Module Generation
+
+When you generate a module, Chapi creates:
+
+- **API Layer**: Controllers or Endpoints (depending on architecture)
+- **Application Layer**: Use cases and business logic
+- **Domain Layer**: Entities and interfaces
+- **Infrastructure Layer**: Repository implementations
+
+## Architecture Detection
+
+Chapi automatically detects your project's architectural style:
+
+<Tabs>
+  <Tab title="Ardalis (Endpoints)">
+    Detected when `API/Endpoints/` folder exists:
+    
+    ```
+    API/
+    └── Endpoints/
+        └── YourModule/
+            ├── Get.cs
+            ├── Post.cs
+            └── GetById.cs
+    ```
+    
+    **Features**:
+    - FastEndpoints or Ardalis.Endpoints
+    - Generic repository pattern
+    - Scrutor auto-discovery for DI
+    - No manual DI registration needed
+  </Tab>
+
+  <Tab title="Classic (Controllers)">
+    Detected when `API/Controllers/` folder exists:
+    
+    ```
+    API/
+    └── Controllers/
+        └── YourModule/
+            └── YourModuleController.cs
+    ```
+    
+    **Features**:
+    - Traditional MVC controllers
+    - Specific repository interfaces
+    - Manual DI registration in `DependencyInjection.cs`
+    - Controller-based routing
+  </Tab>
+</Tabs>
+
+## Generating a Module
+
+<Steps>
+  <Step title="Invoke Module Generator">
+    Use the module generation service:
+    
+    ```csharp
+    await _moduleGeneratorService.GenerateModuleAsync(
+        projectDirectory: "C:\\Projects\\MyApi",
+        moduleName: "Product",
+        dbName: "ApplicationDb"
+    );
+    ```
+    
+    Or via AI Assistant:
+    ```
+    "Generate a Product module for ApplicationDb"
+    ```
+  </Step>
+
+  <Step title="Module Name Processing">
+    Chapi automatically formats your module name:
+    
+    ```csharp
+    // Input: "product" or "Product"
+    // Output: "Product" (PascalCase)
+    moduleName = char.ToUpper(moduleName[0]) + moduleName[1..];
+    ```
+  </Step>
+
+  <Step title="Automatic Structure Creation">
+    Chapi creates folders for all layers:
+    
+    ```csharp
+    // API Layer
+    Directory.CreateDirectory(Path.Combine(
+        apiProjectPath, apiSubFolder, moduleName
+    ));
+    
+    // Application Layer
+    Directory.CreateDirectory(Path.Combine(
+        projectDirectory, "Application", moduleName
+    ));
+    
+    // Domain Layer
+    Directory.CreateDirectory(Path.Combine(
+        projectDirectory, "Domain", moduleName
+    ));
+    
+    // Infrastructure Layer
+    Directory.CreateDirectory(Path.Combine(
+        projectDirectory, "Infrastructure", dbName, "Repositories", moduleName
+    ));
+    ```
+  </Step>
+
+  <Step title="Default Operations Generated">
+    Three operations are created by default:
+    
+    - **Get**: List all entities
+    - **Post**: Create new entity
+    - **GetById**: Retrieve single entity by ID
+    
+    Each operation includes:
+    - Request/Response DTOs
+    - Validation logic
+    - Repository method
+    - API endpoint
+  </Step>
+</Steps>
+
+## Generated Code Structure
+
+### API Layer
+
+<Tabs>
+  <Tab title="Endpoints (Ardalis)">
+    ```csharp
+    // API/Endpoints/Product/Get.cs
+    public class Get : EndpointBaseAsync
+        .WithoutRequest
+        .WithActionResult<List<ProductResponse>>
+    {
+        private readonly IProductRepository _repository;
+
+        public Get(IProductRepository repository)
+        {
+            _repository = repository;
+        }
+
+        [HttpGet("/api/products")]
+        public override async Task<ActionResult<List<ProductResponse>>> HandleAsync(
+            CancellationToken ct = default)
+        {
+            var products = await _repository.GetAllAsync();
+            return Ok(products);
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Controllers (Classic)">
+    ```csharp
+    // API/Controllers/Product/ProductController.cs
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ProductController : ControllerBase
+    {
+        private readonly IProductRepository _repository;
+
+        public ProductController(IProductRepository repository)
+        {
+            _repository = repository;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<List<ProductResponse>>> GetAll()
+        {
+            var products = await _repository.GetAllAsync();
+            return Ok(products);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<ProductResponse>> GetById(int id)
+        {
+            var product = await _repository.GetByIdAsync(id);
+            return Ok(product);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> Create(CreateProductRequest request)
+        {
+            await _repository.CreateAsync(request);
+            return Ok();
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Application Layer
+
+```csharp
+// Application/Product/GetProductsUseCase.cs
+public class GetProductsUseCase
+{
+    private readonly IProductRepository _repository;
+
+    public GetProductsUseCase(IProductRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Result<List<ProductResponse>>> ExecuteAsync()
+    {
+        try
+        {
+            var products = await _repository.GetAllAsync();
+            return Result<List<ProductResponse>>.Success(products);
+        }
+        catch (Exception ex)
+        {
+            return Result<List<ProductResponse>>.Fail(ex.Message);
+        }
+    }
+}
+```
+
+### Domain Layer
+
+```csharp
+// Domain/Product/Product.cs
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+// Domain/Product/IProductRepository.cs
+public interface IProductRepository
+{
+    Task<List<Product>> GetAllAsync();
+    Task<Product> GetByIdAsync(int id);
+    Task<int> CreateAsync(CreateProductRequest request);
+}
+```
+
+### Infrastructure Layer
+
+```csharp
+// Infrastructure/ApplicationDb/Repositories/Product/ProductRepository.cs
+public class ProductRepository : IProductRepository
+{
+    private readonly ApplicationDbContext _context;
+
+    public ProductRepository(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<List<Product>> GetAllAsync()
+    {
+        return await _context.Products.ToListAsync();
+    }
+
+    public async Task<Product> GetByIdAsync(int id)
+    {
+        return await _context.Products.FindAsync(id);
+    }
+
+    public async Task<int> CreateAsync(CreateProductRequest request)
+    {
+        var product = new Product
+        {
+            Name = request.Name,
+            Price = request.Price,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
+
+        return product.Id;
+    }
+}
+```
+
+## Dependency Injection
+
+### Ardalis Architecture
+
+With Ardalis architecture, Scrutor automatically discovers and registers services:
+
+```csharp
+// No manual registration needed!
+// Scrutor scans assemblies and registers by convention
+```
+
+### Classic Architecture
+
+Chapi automatically updates `DependencyInjection.cs`:
+
+```csharp
+// API/Config/DependencyInjection.cs
+public static class DependencyInjection
+{
+    public static IServiceCollection AddApplicationServices(
+        this IServiceCollection services)
+    {
+        // Auto-generated registration
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<GetProductsUseCase>();
+        services.AddScoped<CreateProductUseCase>();
+        services.AddScoped<GetProductByIdUseCase>();
+
+        return services;
+    }
+}
+```
+
+## Rollback Support
+
+Chapi includes automatic rollback capabilities:
+
+```csharp
+var rollbackEntry = RollbackManager.StartTransaction(
+    moduleName, moduleName, operation
+);
+
+try
+{
+    // Generate code...
+    RollbackManager.CommitTransaction(rollbackEntry);
+}
+catch (Exception ex)
+{
+    RollbackManager.RollbackTransaction(rollbackEntry);
+    throw;
+}
+```
+
+If generation fails, all changes are automatically reverted.
+
+## Implementation Details
+
+The module generator source code from `ModuleGeneratorService.cs`:
+
+```csharp
+public async Task GenerateModuleAsync(
+    string projectDirectory, 
+    string moduleName, 
+    string dbName)
+{
+    moduleName = char.ToUpper(moduleName[0]) + moduleName[1..];
+    
+    // Detect architecture
+    string apiProjectPath = FindApiDirectory.GetDirectory(projectDirectory);
+    bool isArdalis = Directory.Exists(
+        Path.Combine(apiProjectPath, "Endpoints")
+    );
+    string apiSubFolder = isArdalis ? "Endpoints" : "Controllers";
+
+    // Create directories
+    string apiPath = Path.Combine(apiProjectPath, apiSubFolder, moduleName);
+    string appPath = Path.Combine(projectDirectory, "Application", moduleName);
+    string domainPath = Path.Combine(projectDirectory, "Domain", moduleName);
+    string infraPath = Path.Combine(
+        projectDirectory, "Infrastructure", dbName, "Repositories", moduleName
+    );
+
+    // Generate operations
+    var defaultOperations = new[] { "Get", "Post", "GetById" };
+    
+    foreach (var operation in defaultOperations)
+    {
+        if (isArdalis)
+        {
+            AddApiEndpointMethod.Add(
+                apiPath, moduleName, operation, moduleName, rollbackEntry
+            );
+        }
+        else
+        {
+            AddApiControllerMethod.Add(
+                apiPath, moduleName, operation, moduleName, rollbackEntry
+            );
+        }
+
+        AddApplicationMethod.Add(
+            appPath, moduleName, operation, moduleName, rollbackEntry
+        );
+        await AddDomainMethod.Add(
+            domainPath, moduleName, operation, moduleName, rollbackEntry
+        );
+        await AddInfrastructureMethod.Add(
+            infraPath, moduleName, dbName, operation, moduleName, rollbackEntry
+        );
+    }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Module Naming">
+    - Use singular nouns (e.g., `Product`, not `Products`)
+    - Use PascalCase
+    - Choose domain-driven names
+    - Keep names concise but descriptive
+  </Accordion>
+
+  <Accordion title="Database Context">
+    - Ensure the database name matches your DbContext
+    - Verify the Infrastructure folder structure
+    - Check that DbContext is properly configured
+  </Accordion>
+
+  <Accordion title="Custom Operations">
+    After generating the default operations, you can:
+    - Add custom methods to repositories
+    - Create specialized use cases
+    - Extend endpoints with additional logic
+  </Accordion>
+
+  <Accordion title="Code Review">
+    After generation:
+    - Review generated DTOs
+    - Add validation attributes
+    - Customize business logic
+    - Add unit tests
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Warning>
+  **API Directory Not Found**: Ensure your project structure follows Clean Architecture conventions with an API project.
+</Warning>
+
+<Warning>
+  **Database Name Mismatch**: The `dbName` parameter must match the folder name in `Infrastructure/`.
+</Warning>
+
+<Note>
+  Generated code uses Roslyn for C# code manipulation, ensuring proper formatting and syntax.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Git Workflow" icon="git-alt" href="/guides/git-workflow">
+    Commit your generated modules with Git integration
+  </Card>
+  <Card title="AI Setup" icon="robot" href="/guides/ai-setup">
+    Use AI to enhance your generated code
+  </Card>
+</CardGroup>

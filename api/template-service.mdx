@@ -1,0 +1,129 @@
+---
+title: "Template Service"
+description: "API reference for the Template Service that handles project template renaming operations"
+---
+
+## Overview
+
+The Template Service provides functionality for renaming project templates by updating directory names, file names, and file contents throughout a project structure.
+
+**Interface**: `ITemplateService`  
+**Implementation**: `ProjectTemplateService`  
+**Namespace**: `Chapi.Infrastructure.Services`
+
+## Interface Definition
+
+### ITemplateService
+
+Defines the contract for template operations.
+
+```csharp
+public interface ITemplateService
+{
+    Task<Result> RenameTemplateAsync(
+        string path, 
+        string oldName, 
+        string newName, 
+        Action<string> onProgress = null
+    );
+}
+```
+
+## Methods
+
+### RenameTemplateAsync
+
+Renames a project template by replacing all occurrences of the old name with the new name in directories, files, and file contents.
+
+```csharp
+Task<Result> RenameTemplateAsync(
+    string path,
+    string oldName,
+    string newName,
+    Action<string> onProgress = null
+)
+```
+
+<ParamField path="path" type="string" required>
+  The root directory path where the template is located
+</ParamField>
+
+<ParamField path="oldName" type="string" required>
+  The current name to be replaced throughout the template
+</ParamField>
+
+<ParamField path="newName" type="string" required>
+  The new name that will replace the old name
+</ParamField>
+
+<ParamField path="onProgress" type="Action<string>" default="null">
+  Optional callback to receive progress updates during the renaming process
+</ParamField>
+
+<ResponseField name="Result" type="Result">
+  Returns a Result object indicating success or failure with error details
+</ResponseField>
+
+## Implementation Details
+
+The `ProjectTemplateService` implementation performs the following operations:
+
+1. **Directory Renaming**: Renames all directories containing the old name (bottom-up to preserve paths)
+2. **Content Update**: Replaces all occurrences of the old name in file contents
+3. **File Renaming**: Renames files that contain the old name in their filename
+4. **Error Handling**: Gracefully handles binary files and locked files by ignoring them
+
+## Usage Example
+
+```csharp
+// Inject the service
+var templateService = serviceProvider.GetRequiredService<ITemplateService>();
+
+// Define progress callback
+Action<string> progressHandler = (message) => 
+{
+    Console.WriteLine($"[Progress] {message}");
+};
+
+// Rename template from "MyOldTemplate" to "MyNewProject"
+var result = await templateService.RenameTemplateAsync(
+    path: @"C:\Projects\MyTemplate",
+    oldName: "MyOldTemplate",
+    newName: "MyNewProject",
+    onProgress: progressHandler
+);
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Template renamed successfully!");
+}
+else
+{
+    Console.WriteLine($"Error: {result.Error}");
+}
+```
+
+## Progress Messages
+
+The service reports the following progress updates:
+
+- `"Renombrando carpetas..."` - When renaming directories
+- `"Renombrando archivos y actualizando contenido..."` - When processing files
+- `"Contenido actualizado: {fileName}"` - For each file that had content updated
+
+## Error Handling
+
+The service returns a failed Result in the following cases:
+
+- **Directory/File Access Errors**: If the system cannot access or modify files
+- **Permission Issues**: If the process lacks permissions to rename or modify
+- **General Exceptions**: Any unexpected errors during the renaming process
+
+Error messages are prefixed with: `"Error al renombrar plantilla: {message}"`
+
+## Notes
+
+- Binary and locked files are silently skipped during content updates
+- Directory renaming is performed from deepest to shallowest to maintain path integrity
+- File paths are re-scanned after directory renaming to account for path changes
+- The operation runs asynchronously using `Task.Run` to avoid blocking the UI thread

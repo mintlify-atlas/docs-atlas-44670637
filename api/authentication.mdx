@@ -1,0 +1,329 @@
+---
+title: "Authentication Services"
+description: "API reference for Git authentication providers supporting GitHub and GitLab OAuth flows"
+---
+
+## Overview
+
+The Authentication Services provide OAuth 2.0 authentication for GitHub and GitLab, handling token management, user information retrieval, and repository access.
+
+**Namespace**: `Chapi.Infrastructure.Services.Auth`
+
+## Provider Factory
+
+### IGitAuthProviderFactory
+
+Factory interface for obtaining the correct authentication provider.
+
+```csharp
+public interface IGitAuthProviderFactory
+{
+    IGitAuthProvider GetProvider(GitProvider provider);
+    GitProvider DetectProviderFromUrl(string remoteUrl);
+}
+```
+
+### GetProvider
+
+Returns the appropriate authentication provider.
+
+```csharp
+IGitAuthProvider GetProvider(GitProvider provider)
+```
+
+<ParamField path="provider" type="GitProvider" required>
+  The Git provider (GitHub, GitLab, Bitbucket, AzureDevOps, or Unknown)
+</ParamField>
+
+<ResponseField name="provider" type="IGitAuthProvider">
+  Instance of the requested authentication provider
+</ResponseField>
+
+### DetectProviderFromUrl
+
+Detects the Git provider from a remote URL.
+
+```csharp
+GitProvider DetectProviderFromUrl(string remoteUrl)
+```
+
+<ParamField path="remoteUrl" type="string" required>
+  Git remote URL (e.g., "https://github.com/user/repo.git")
+</ParamField>
+
+<ResponseField name="provider" type="GitProvider">
+  Detected provider based on URL patterns
+</ResponseField>
+
+**Detection Rules**:
+- Contains `"github.com"` → GitHub
+- Contains `"gitlab.com"` or `"gitlab"` → GitLab
+- Contains `"bitbucket.org"` → Bitbucket
+- Contains `"dev.azure.com"` or `"visualstudio.com"` → AzureDevOps
+
+## GitHub OAuth Provider
+
+### GitHubOAuthProvider
+
+Implements OAuth 2.0 authentication for GitHub.
+
+**Configuration**: Requires `GitHubConfig` with ClientId, ClientSecret, RedirectUri, and Scope
+
+### AuthenticateAsync
+
+Initiates GitHub OAuth flow.
+
+```csharp
+Task<Result<GitCredential>> AuthenticateAsync()
+```
+
+<ResponseField name="credential" type="Result<GitCredential>">
+  Returns GitCredential with Provider, Username, Email, AvatarUrl, and AccessToken
+</ResponseField>
+
+**Authentication Flow**:
+
+1. Checks for existing valid credentials
+2. Opens browser to GitHub authorization URL
+3. Listens for OAuth callback on local HTTP server
+4. Exchanges authorization code for access token
+5. Retrieves user information
+6. Stores credentials securely
+
+### ValidateTokenAsync
+
+Validates a GitHub access token.
+
+```csharp
+Task<bool> ValidateTokenAsync(string token)
+```
+
+<ParamField path="token" type="string" required>
+  GitHub access token to validate
+</ParamField>
+
+<ResponseField name="isValid" type="bool">
+  True if token is valid and has access to user information
+</ResponseField>
+
+### GetRepositoriesAsync
+
+Retrieves user's GitHub repositories.
+
+```csharp
+Task<Result<List<RemoteRepository>>> GetRepositoriesAsync(string token)
+```
+
+<ParamField path="token" type="string" required>
+  Valid GitHub access token
+</ParamField>
+
+<ResponseField name="repositories" type="Result<List<RemoteRepository>>">
+  List of repositories sorted by last update, up to 100 items
+</ResponseField>
+
+**RemoteRepository Properties**:
+- `Name` - Repository name
+- `FullName` - Full name (owner/repo)
+- `CloneUrl` - HTTPS clone URL
+- `IsPrivate` - Privacy status
+- `Description` - Repository description
+- `UpdatedAt` - Last update timestamp
+
+### GetUserInfoAsync
+
+Retrieves GitHub user information.
+
+```csharp
+Task<Result<GitCredential>> GetUserInfoAsync(string token)
+```
+
+### RefreshTokenAsync
+
+GitHub does not support refresh tokens in this OAuth flow.
+
+```csharp
+Task<Result<GitCredential>> RefreshTokenAsync()
+```
+
+<ResponseField name="result" type="Result<GitCredential>">
+  Always fails with message "GitHub no soporta refresh token en este flujo."
+</ResponseField>
+
+## GitLab OAuth Provider
+
+### GitLabOAuthProvider
+
+Implements OAuth 2.0 authentication for GitLab with refresh token support.
+
+**Configuration**: Requires `GitLabConfig` with BaseUrl, ClientId, ClientSecret, RedirectUri, and Scope
+
+### AuthenticateAsync
+
+Initiates GitLab OAuth flow.
+
+```csharp
+Task<Result<GitCredential>> AuthenticateAsync()
+```
+
+<ResponseField name="credential" type="Result<GitCredential>">
+  Returns GitCredential with Provider, Username, Email, AvatarUrl, and AccessToken
+</ResponseField>
+
+**Authentication Flow**:
+
+1. Checks for existing valid credentials
+2. Opens browser to GitLab authorization URL
+3. Listens for OAuth callback
+4. Exchanges code for access token and refresh token
+5. Retrieves user information
+6. Stores access token and refresh token
+
+### RefreshTokenAsync
+
+Renews expired access token using refresh token.
+
+```csharp
+Task<Result<GitCredential>> RefreshTokenAsync()
+```
+
+<ResponseField name="credential" type="Result<GitCredential>">
+  Updated credentials with new access token
+</ResponseField>
+
+**Refresh Flow**:
+
+1. Retrieves stored refresh token
+2. Requests new access token from GitLab
+3. Updates stored credentials
+4. Handles token rotation (new refresh token)
+
+### GetRepositoriesAsync
+
+Retrieves user's GitLab projects.
+
+```csharp
+Task<Result<List<RemoteRepository>>> GetRepositoriesAsync(string token)
+```
+
+<ParamField path="token" type="string" required>
+  Valid GitLab access token
+</ParamField>
+
+<ResponseField name="repositories" type="Result<List<RemoteRepository>>">
+  List of projects (repositories) sorted by last activity, up to 100 items
+</ResponseField>
+
+**Note**: GitLab uses "projects" terminology instead of "repositories"
+
+## Common Interface
+
+### IGitAuthProvider
+
+Base interface implemented by all providers.
+
+```csharp
+public interface IGitAuthProvider
+{
+    GitProvider Provider { get; }
+    Task<Result<GitCredential>> AuthenticateAsync();
+    Task<bool> ValidateTokenAsync(string token);
+    Task<Result<GitCredential>> RefreshTokenAsync();
+    Task<Result<List<RemoteRepository>>> GetRepositoriesAsync(string token);
+    Task<Result<GitCredential>> GetUserInfoAsync(string token);
+}
+```
+
+## OAuth Callback UI
+
+Both providers display a premium callback page in the browser:
+
+**Success Response**:
+- Green gradient theme
+- Success icon (✅)
+- Confirmation message
+- Instructions to close the browser tab
+
+**Error Response**:
+- Red gradient theme
+- Error icon (❌)
+- Error description (state mismatch or cancelled)
+- Retry instructions
+
+## Usage Example
+
+```csharp
+// Inject factory
+var authFactory = serviceProvider.GetRequiredService<IGitAuthProviderFactory>();
+
+// Detect provider from URL
+string remoteUrl = "https://github.com/myorg/myrepo.git";
+var providerType = authFactory.DetectProviderFromUrl(remoteUrl);
+
+// Get provider
+var provider = authFactory.GetProvider(providerType);
+
+// Authenticate
+var result = await provider.AuthenticateAsync();
+if (result.IsSuccess)
+{
+    Console.WriteLine($"Authenticated as {result.Data.Username}");
+    Console.WriteLine($"Email: {result.Data.Email}");
+    
+    // Get repositories
+    var reposResult = await provider.GetRepositoriesAsync(result.Data.AccessToken);
+    if (reposResult.IsSuccess)
+    {
+        foreach (var repo in reposResult.Data)
+        {
+            Console.WriteLine($"- {repo.FullName} ({repo.CloneUrl})");
+        }
+    }
+}
+else
+{
+    Console.WriteLine($"Authentication failed: {result.Error}");
+}
+```
+
+## Token Storage
+
+Both providers use `ICredentialStorageService` to securely store tokens:
+
+- **GitHub**: Stores access token only (no refresh)
+- **GitLab**: Stores both access token and refresh token separately
+
+```csharp
+// GitHub
+await _credentialStorage.SaveCredentialAsync("GitHub", username, accessToken);
+
+// GitLab
+await _credentialStorage.SaveCredentialAsync("GitLab", username, accessToken);
+await _credentialStorage.SaveCredentialAsync("GitLab_Refresh", "RefreshToken", refreshToken);
+```
+
+## Error Handling
+
+Common error scenarios:
+
+- **Authentication Cancelled**: User closes browser without completing OAuth
+- **State Mismatch**: Security validation failed (possible CSRF attack)
+- **Invalid Token**: Token expired or revoked
+- **Network Error**: Unable to connect to Git provider API
+- **Refresh Failed**: Refresh token expired (requires re-authentication)
+
+## Security Features
+
+- **State Parameter**: CSRF protection using random GUID
+- **HTTPS Only**: Secure token transmission
+- **Local Callback**: HTTP listener on localhost only
+- **Token Rotation**: GitLab refresh tokens are rotated on each renewal
+- **Secure Storage**: Credentials stored using Windows Credential Manager
+
+## Notes
+
+- GitHub OAuth does not provide refresh tokens (requires re-authentication when expired)
+- GitLab supports token refresh for long-running sessions
+- Both providers automatically retry authentication with refreshed token on 401/403 errors
+- Repository lists are limited to 100 items per request
+- User-Agent header is set to "ChapiAssistant" for API requests

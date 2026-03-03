@@ -1,0 +1,240 @@
+---
+title: Git Authentication
+description: Configure GitHub and GitLab OAuth authentication for repository access
+---
+
+Chapi Assistant supports OAuth authentication with GitHub and GitLab to securely access your repositories. The authentication flow uses a local callback server to handle the OAuth redirect.
+
+## Supported Providers
+
+<CardGroup cols={2}>
+  <Card title="GitHub" icon="github" href="#github-oauth">
+    Access GitHub repositories using OAuth 2.0
+  </Card>
+  <Card title="GitLab" icon="gitlab" href="#gitlab-oauth">
+    Access GitLab repositories with refresh token support
+  </Card>
+</CardGroup>
+
+## GitHub OAuth
+
+### Configuration
+
+GitHub OAuth is configured in `appsettings.json` under the `GitAuth.GitHub` section:
+
+<ParamField path="ClientId" type="string" required>
+  Your GitHub OAuth application client ID. Create one at [GitHub Developer Settings](https://github.com/settings/developers).
+</ParamField>
+
+<ParamField path="ClientSecret" type="string" required>
+  Your GitHub OAuth application client secret.
+</ParamField>
+
+<ParamField path="RedirectUri" type="string" default="http://localhost:8888/callback">
+  The local callback URL where GitHub redirects after authorization. Must match the OAuth app configuration.
+</ParamField>
+
+<ParamField path="Scope" type="string" default="repo user">
+  OAuth scopes requested from GitHub. Default includes:
+  - `repo`: Full repository access (read/write)
+  - `user`: Read user profile information
+</ParamField>
+
+### Example Configuration
+
+```json appsettings.json
+{
+  "GitAuth": {
+    "GitHub": {
+      "ClientId": "Ov23li5zo1SneHUKeXf7",
+      "ClientSecret": "your-client-secret-here",
+      "RedirectUri": "http://localhost:8888/callback",
+      "Scope": "repo user"
+    }
+  }
+}
+```
+
+### Authentication Flow
+
+1. **Check Existing Credentials**: Validates stored tokens before initiating OAuth
+2. **OAuth Authorization**: Opens browser to GitHub's authorization page
+3. **Local Callback**: Listens on port 8888 for the OAuth callback
+4. **Token Exchange**: Exchanges authorization code for access token
+5. **User Info**: Retrieves user profile information
+6. **Credential Storage**: Securely stores the access token
+
+<Note>
+GitHub OAuth tokens do not expire and do not support refresh tokens in this flow.
+</Note>
+
+### Creating a GitHub OAuth App
+
+<Steps>
+  <Step title="Navigate to GitHub Settings">
+    Go to [GitHub Developer Settings](https://github.com/settings/developers) and click "New OAuth App"
+  </Step>
+  
+  <Step title="Configure Application">
+    - **Application name**: Chapi Assistant
+    - **Homepage URL**: Your application URL
+    - **Authorization callback URL**: `http://localhost:8888/callback`
+  </Step>
+  
+  <Step title="Get Credentials">
+    After creating the app, copy the Client ID and generate a new Client Secret
+  </Step>
+  
+  <Step title="Update Configuration">
+    Add the credentials to your `appsettings.json` file
+  </Step>
+</Steps>
+
+## GitLab OAuth
+
+### Configuration
+
+GitLab OAuth is configured in `appsettings.json` under the `GitAuth.GitLab` section:
+
+<ParamField path="ClientId" type="string" required>
+  Your GitLab OAuth application client ID. Create one in GitLab User Settings > Applications.
+</ParamField>
+
+<ParamField path="ClientSecret" type="string" required>
+  Your GitLab OAuth application client secret.
+</ParamField>
+
+<ParamField path="RedirectUri" type="string" default="http://localhost:8891/callback">
+  The local callback URL where GitLab redirects after authorization. Must match the OAuth app configuration.
+</ParamField>
+
+<ParamField path="Scope" type="string" default="api read_user read_repository write_repository">
+  OAuth scopes requested from GitLab. Default includes:
+  - `api`: Full API access
+  - `read_user`: Read user profile
+  - `read_repository`: Read repository data
+  - `write_repository`: Write to repositories
+</ParamField>
+
+<ParamField path="BaseUrl" type="string" default="https://gitlab.com">
+  The base URL for your GitLab instance. Can be customized for self-hosted GitLab.
+</ParamField>
+
+### Example Configuration
+
+```json appsettings.json
+{
+  "GitAuth": {
+    "GitLab": {
+      "ClientId": "7ac0cdbb62e4605c06393535501beb1cec81a930d3e90185b95d972c00cb61df",
+      "ClientSecret": "gloas-your-secret-here",
+      "RedirectUri": "http://localhost:8891/callback",
+      "Scope": "api read_user read_repository write_repository",
+      "BaseUrl": "https://gitlab.com"
+    }
+  }
+}
+```
+
+### Authentication Flow
+
+1. **Check Existing Credentials**: Validates stored tokens before initiating OAuth
+2. **OAuth Authorization**: Opens browser to GitLab's authorization page
+3. **Local Callback**: Listens on port 8891 for the OAuth callback
+4. **Token Exchange**: Exchanges authorization code for access and refresh tokens
+5. **User Info**: Retrieves user profile information
+6. **Credential Storage**: Securely stores both access and refresh tokens
+
+<Note>
+GitLab OAuth tokens expire after a certain period. The refresh token is automatically used to obtain new access tokens.
+</Note>
+
+### Token Refresh
+
+GitLab supports automatic token refresh using the stored refresh token:
+
+```csharp GitLabOAuthProvider.cs
+public async Task<Result<GitCredential>> RefreshTokenAsync()
+{
+    // Retrieves stored refresh token
+    var refreshCred = await _credentialStorage.GetCredentialAsync("GitLab_Refresh");
+    
+    // Exchanges refresh token for new access token
+    // Stores updated access and refresh tokens
+}
+```
+
+### Creating a GitLab OAuth App
+
+<Steps>
+  <Step title="Navigate to GitLab Applications">
+    Go to User Settings > Applications in your GitLab instance
+  </Step>
+  
+  <Step title="Configure Application">
+    - **Name**: Chapi Assistant
+    - **Redirect URI**: `http://localhost:8891/callback`
+    - **Scopes**: Select `api`, `read_user`, `read_repository`, `write_repository`
+  </Step>
+  
+  <Step title="Get Credentials">
+    After creating the app, copy the Application ID and Secret
+  </Step>
+  
+  <Step title="Update Configuration">
+    Add the credentials to your `appsettings.json` file
+  </Step>
+</Steps>
+
+## Credential Storage
+
+Credentials are securely stored using the `ICredentialStorageService` interface:
+
+- **GitHub**: Stores username and access token
+- **GitLab**: Stores username, access token, and refresh token
+
+<Warning>
+Never commit `appsettings.json` with production OAuth credentials to version control. Use user secrets or environment variables for sensitive data.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authentication Cancelled">
+    This occurs when:
+    - User closes the browser before completing OAuth
+    - State parameter mismatch (security validation)
+    - Authorization code is not received
+    
+    **Solution**: Retry the authentication process.
+  </Accordion>
+  
+  <Accordion title="Invalid Token">
+    Token validation fails if:
+    - Token has been revoked in GitHub/GitLab
+    - Network connectivity issues
+    - GitLab token has expired
+    
+    **Solution**: Re-authenticate or use refresh token (GitLab only).
+  </Accordion>
+  
+  <Accordion title="Port Already in Use">
+    The callback server cannot start if the port is occupied.
+    
+    **Solution**: 
+    - Close applications using ports 8888 (GitHub) or 8891 (GitLab)
+    - Change `RedirectUri` in configuration to use a different port
+  </Accordion>
+  
+  <Accordion title="Refresh Token Expired (GitLab)">
+    GitLab refresh tokens can expire or become invalid.
+    
+    **Solution**: The system will automatically prompt for re-authentication.
+  </Accordion>
+</AccordionGroup>
+
+## Source Code Reference
+
+- GitHub OAuth Provider: `~/workspace/source/Chapi/Infrastructure/Services/Auth/GitHubOAuthProvider.cs`
+- GitLab OAuth Provider: `~/workspace/source/Chapi/Infrastructure/Services/Auth/GitLabOAuthProvider.cs`
+- Configuration Model: `~/workspace/source/Chapi/Infrastructure/Configuration/GitAuthConfig.cs`

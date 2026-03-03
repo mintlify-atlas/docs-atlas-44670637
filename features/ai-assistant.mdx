@@ -1,0 +1,559 @@
+---
+title: 'AI Assistant'
+description: 'AI-powered features for generating commit messages, SQL queries, and interactive chat assistance'
+icon: 'sparkles'
+---
+
+## Overview
+
+Chapi Assistant integrates AI capabilities powered by Microsoft.Extensions.AI to provide intelligent assistance throughout your development workflow. Get AI-generated commit messages, SQL queries, and conversational help.
+
+<Info>
+AI features use the `IChatClient` interface from Microsoft.Extensions.AI, supporting multiple AI providers including Gemini.
+</Info>
+
+## AI-Generated Commit Messages
+
+### Automatic Commit Messages from Diff
+
+Generate meaningful commit messages based on your code changes:
+
+```csharp
+var result = await generateCommitMessageUseCase.ExecuteAsync(
+    diffContent: gitDiffOutput
+);
+
+if (result.IsSuccess)
+{
+    string message = result.Value;
+    // Example: "Add customer validation and update repository interface"
+}
+```
+
+<Tabs>
+  <Tab title="Basic Usage">
+    Generate a commit message from staged changes:
+
+    ```csharp
+    // 1. Get the diff of staged changes
+    var diff = await gitRepository.GetStagedDiffAsync(projectPath);
+
+    // 2. Generate commit message
+    var result = await generateCommitMessageUseCase.ExecuteAsync(diff);
+
+    if (result.IsSuccess)
+    {
+        // 3. Use the generated message
+        var commitRequest = new CommitRequest
+        {
+            ProjectPath = projectPath,
+            Message = result.Value,
+            Files = stagedFiles
+        };
+
+        await commitChangesUseCase.ExecuteAsync(commitRequest);
+    }
+    ```
+  </Tab>
+
+  <Tab title="With Validation">
+    Handle edge cases and validation:
+
+    ```csharp
+    if (string.IsNullOrWhiteSpace(diffContent))
+    {
+        // No changes to commit
+        Console.WriteLine("No changes detected");
+        return;
+    }
+
+    var result = await generateCommitMessageUseCase.ExecuteAsync(
+        diffContent
+    );
+
+    if (!result.IsSuccess)
+    {
+        // Possible errors:
+        // - "No hay cambios para generar mensaje"
+        // - "No se pudo generar el mensaje de commit"
+        // - AI service errors
+        
+        Console.WriteLine($"Error: {result.Error}");
+    }
+    ```
+  </Tab>
+
+  <Tab title="Custom Prompts">
+    The use case uses optimized prompts for commit messages:
+
+    ```csharp
+    // Internal implementation uses:
+    var prompt = GetPrompt.GitCommit(diffContent);
+    
+    // The prompt analyzes:
+    // - Added/modified/deleted files
+    // - Code changes and their impact
+    // - Semantic meaning of changes
+    // - Conventional commit format
+    ```
+  </Tab>
+</Tabs>
+
+### How It Works
+
+<Steps>
+  <Step title="Analyze Diff">
+    The AI analyzes the git diff to understand what changed.
+  </Step>
+  
+  <Step title="Identify Intent">
+    Determines the purpose: feature, fix, refactor, docs, etc.
+  </Step>
+  
+  <Step title="Generate Message">
+    Creates a concise, conventional commit message.
+  </Step>
+  
+  <Step title="Return Result">
+    Returns the message trimmed and ready to use.
+  </Step>
+</Steps>
+
+<Check>
+Generated messages follow conventional commit format and best practices.
+</Check>
+
+## SQL Query Generation
+
+### Generate SQL from Natural Language
+
+Create SQL queries by describing what you need:
+
+```csharp
+var result = await generateSqlQueryUseCase.ExecuteAsync(
+    description: "Get all active customers who made purchases in the last 30 days",
+    schema: customerSchema,
+    netParams: "@Days int = 30"
+);
+
+if (result.IsSuccess)
+{
+    string sqlQuery = result.Value;
+    // Generated SQL ready to use
+}
+```
+
+<Tabs>
+  <Tab title="Basic Query">
+    Generate a simple query:
+
+    ```csharp
+    var result = await generateSqlQueryUseCase.ExecuteAsync(
+        description: "Select all customers ordered by name"
+    );
+
+    // Output:
+    // SELECT * FROM Customers ORDER BY Name;
+    ```
+  </Tab>
+
+  <Tab title="With Schema Context">
+    Provide database schema for better results:
+
+    ```csharp
+    var schema = @"
+        Customers (Id, Name, Email, IsActive, CreatedDate)
+        Orders (Id, CustomerId, OrderDate, TotalAmount)
+        OrderItems (Id, OrderId, ProductId, Quantity, Price)
+    ";
+
+    var result = await generateSqlQueryUseCase.ExecuteAsync(
+        description: "Get customers with their total order count and sum",
+        schema: schema
+    );
+
+    // Output: Contextually accurate JOIN query
+    ```
+  </Tab>
+
+  <Tab title="With .NET Parameters">
+    Include .NET parameter definitions:
+
+    ```csharp
+    var result = await generateSqlQueryUseCase.ExecuteAsync(
+        description: "Find customers by email pattern",
+        schema: "Customers (Id, Name, Email)",
+        netParams: "@EmailPattern varchar(255)"
+    );
+
+    // Output: Query using @EmailPattern
+    ```
+  </Tab>
+
+  <Tab title="Complex Queries">
+    Generate complex analytical queries:
+
+    ```csharp
+    var schema = @"
+        Customers (Id, Name, Email, Region)
+        Orders (Id, CustomerId, OrderDate, TotalAmount)
+        Products (Id, Name, Category)
+    ";
+
+    var result = await generateSqlQueryUseCase.ExecuteAsync(
+        description: @"Show monthly revenue by region with 
+                      year-over-year comparison for 2024",
+        schema: schema
+    );
+
+    // Output: Complex query with window functions, CTEs, etc.
+    ```
+  </Tab>
+</Tabs>
+
+### Parameters
+
+<ParamField path="description" type="string" required>
+  Natural language description of the SQL query you need.
+</ParamField>
+
+<ParamField path="schema" type="string">
+  Database schema information (table and column names) for context.
+</ParamField>
+
+<ParamField path="netParams" type="string">
+  .NET parameter definitions to include in the query.
+</ParamField>
+
+### Error Handling
+
+```csharp
+if (!result.IsSuccess)
+{
+    switch (result.Error)
+    {
+        case "La descripción de la consulta no puede estar vacía":
+            // Empty description
+            break;
+        case "No se pudo generar la consulta SQL":
+            // AI generation failed
+            break;
+        default:
+            // Other errors (network, AI service, etc.)
+            Console.WriteLine($"Error: {result.Error}");
+            break;
+    }
+}
+```
+
+## Interactive Chat Assistant
+
+### Conversational AI Help
+
+Get contextual help and answers during development:
+
+```csharp
+var result = await sendChatMessageUseCase.ExecuteAsync(
+    userMessage: "How do I implement repository pattern in this project?",
+    context: projectStructureInfo
+);
+
+if (result.IsSuccess)
+{
+    string response = result.Value;
+    Console.WriteLine(response);
+}
+```
+
+<Tabs>
+  <Tab title="Simple Chat">
+    Ask questions without additional context:
+
+    ```csharp
+    var result = await sendChatMessageUseCase.ExecuteAsync(
+        userMessage: "What is dependency injection?"
+    );
+
+    if (result.IsSuccess)
+    {
+        Console.WriteLine(result.Value);
+    }
+    ```
+  </Tab>
+
+  <Tab title="With Context">
+    Provide project-specific context:
+
+    ```csharp
+    var context = @"
+        Current project: Clean Architecture WPF app
+        Using: MVVM pattern, Entity Framework, Autofac
+        Working on: Customer module implementation
+    ";
+
+    var result = await sendChatMessageUseCase.ExecuteAsync(
+        userMessage: "How should I structure my ViewModels?",
+        context: context
+    );
+
+    // Response will be tailored to your stack and context
+    ```
+  </Tab>
+
+  <Tab title="Code Review">
+    Get feedback on code snippets:
+
+    ```csharp
+    var codeSnippet = @"
+        public class CustomerService {
+            private readonly ICustomerRepository _repo;
+            public CustomerService(ICustomerRepository repo) {
+                _repo = repo;
+            }
+        }
+    ";
+
+    var result = await sendChatMessageUseCase.ExecuteAsync(
+        userMessage: "Review this code for best practices",
+        context: $"Code:\n{codeSnippet}"
+    );
+    ```
+  </Tab>
+
+  <Tab title="Troubleshooting">
+    Debug errors and exceptions:
+
+    ```csharp
+    var errorContext = @"
+        Error: NullReferenceException
+        Location: CustomerViewModel.SaveCommand
+        Stack trace: ...
+    ";
+
+    var result = await sendChatMessageUseCase.ExecuteAsync(
+        userMessage: "Why am I getting this error?",
+        context: errorContext
+    );
+    ```
+  </Tab>
+</Tabs>
+
+### Use Cases for Chat
+
+<CardGroup cols={2}>
+  <Card title="Architecture Questions" icon="diagram-project">
+    Ask about design patterns, project structure, and architectural decisions.
+  </Card>
+  
+  <Card title="Code Explanation" icon="book-open">
+    Understand complex code, libraries, or framework features.
+  </Card>
+  
+  <Card title="Best Practices" icon="star">
+    Learn recommended approaches for specific scenarios.
+  </Card>
+  
+  <Card title="Debugging Help" icon="bug">
+    Get assistance troubleshooting errors and exceptions.
+  </Card>
+  
+  <Card title="API Guidance" icon="plug">
+    Learn how to use libraries, NuGet packages, or APIs.
+  </Card>
+  
+  <Card title="Refactoring Advice" icon="code">
+    Get suggestions for improving code quality and structure.
+  </Card>
+</CardGroup>
+
+## AI Provider Configuration
+
+Chapi uses `Microsoft.Extensions.AI` abstraction, supporting multiple providers:
+
+```csharp
+// Example: Configured in DI container
+services.AddSingleton<IChatClient>(sp => 
+    new GeminiChatClient(apiKey, modelName)
+);
+
+// All AI use cases use the same abstraction
+services.AddScoped<GenerateCommitMessageUseCase>();
+services.AddScoped<GenerateSqlQueryUseCase>();
+services.AddScoped<SendChatMessageUseCase>();
+```
+
+<Info>
+The implementation uses prompts from `GetPrompt` helper class for consistent, optimized results.
+</Info>
+
+## Prompt Engineering
+
+Chapi uses specialized prompts for each AI feature:
+
+<AccordionGroup>
+  <Accordion title="Git Commit Prompts">
+    ```csharp
+    GetPrompt.GitCommit(diffContent)
+    ```
+    
+    Optimized to:
+    - Analyze code changes semantically
+    - Use conventional commit format
+    - Keep messages concise
+    - Focus on "why" not "what"
+  </Accordion>
+
+  <Accordion title="SQL Generation Prompts">
+    ```csharp
+    GetPrompt.GenerateSqlCall(description, schema, netParams)
+    ```
+    
+    Designed to:
+    - Understand natural language queries
+    - Use provided schema accurately
+    - Include .NET parameters correctly
+    - Generate optimized, readable SQL
+  </Accordion>
+
+  <Accordion title="Chat Prompts">
+    Chat messages use direct user input with optional context injection:
+    
+    ```csharp
+    var prompt = context != null 
+        ? $"{context}\n\nUsuario: {userMessage}"
+        : userMessage;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error Handling & Validation
+
+<CodeGroup>
+```csharp Commit Message Generation
+var result = await generateCommitMessageUseCase.ExecuteAsync(diff);
+
+if (!result.IsSuccess)
+{
+    // "No hay cambios para generar mensaje"
+    // "No se pudo generar el mensaje de commit"
+    // "Error generando mensaje: {exception}"
+    HandleError(result.Error);
+}
+```
+
+```csharp SQL Generation
+var result = await generateSqlQueryUseCase.ExecuteAsync(
+    description,
+    schema,
+    netParams
+);
+
+if (!result.IsSuccess)
+{
+    // "La descripción de la consulta no puede estar vacía"
+    // "No se pudo generar la consulta SQL"
+    // "Error generando SQL: {exception}"
+    HandleError(result.Error);
+}
+```
+
+```csharp Chat Messages
+var result = await sendChatMessageUseCase.ExecuteAsync(
+    userMessage,
+    context
+);
+
+if (!result.IsSuccess)
+{
+    // "El mensaje no puede estar vacío"
+    // "No se recibió respuesta del asistente"
+    // "Error en chat: {exception}"
+    HandleError(result.Error);
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Commit Message Generation">
+    - Stage meaningful, related changes together
+    - Review and edit generated messages as needed
+    - Use when diff is clear and focused
+    - Combine small commits into logical units before generating
+  </Accordion>
+
+  <Accordion title="SQL Generation">
+    - Provide clear, specific descriptions
+    - Include schema information for complex queries
+    - Review generated SQL before execution
+    - Test queries on sample data first
+    - Use for learning and prototyping, validate for production
+  </Accordion>
+
+  <Accordion title="Chat Assistant">
+    - Provide relevant context for better responses
+    - Ask specific questions
+    - Include code snippets when discussing implementation
+    - Break complex questions into smaller parts
+    - Verify suggestions before implementing
+  </Accordion>
+
+  <Accordion title="Performance">
+    - AI operations require network calls (may take 1-5 seconds)
+    - Cache or reuse results when appropriate
+    - Handle errors gracefully for offline scenarios
+    - Consider rate limits from AI providers
+  </Accordion>
+</AccordionGroup>
+
+## Response Quality
+
+<Tabs>
+  <Tab title="Commit Messages">
+    Expected quality:
+    - ✅ Follows conventional commit format
+    - ✅ Concise (50-72 characters typically)
+    - ✅ Describes purpose, not implementation
+    - ✅ Uses imperative mood
+    
+    Example outputs:
+    - "Add customer validation to registration form"
+    - "Fix null reference in order processing"
+    - "Refactor repository pattern implementation"
+  </Tab>
+
+  <Tab title="SQL Queries">
+    Expected quality:
+    - ✅ Syntactically correct SQL
+    - ✅ Uses provided schema accurately
+    - ✅ Includes necessary JOINs and conditions
+    - ✅ Optimized with proper indexes and clauses
+    - ✅ Formatted for readability
+    
+    <Note>
+    Always review generated SQL for security (SQL injection) and performance before production use.
+    </Note>
+  </Tab>
+
+  <Tab title="Chat Responses">
+    Expected quality:
+    - ✅ Context-aware and relevant
+    - ✅ Technically accurate
+    - ✅ Includes code examples when helpful
+    - ✅ References best practices
+    - ✅ Tailored to .NET/WPF context
+  </Tab>
+</Tabs>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Git Management" icon="code-branch" href="/features/git-management">
+    Use AI-generated commit messages in your Git workflow
+  </Card>
+  
+  <Card title="Code Generation" icon="wand-magic-sparkles" href="/features/code-generation">
+    Combine AI assistance with automated code generation
+  </Card>
+</CardGroup>
