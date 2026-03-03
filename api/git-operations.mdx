@@ -440,3 +440,229 @@ foreach (var commit in commits)
     Console.WriteLine($"{commit.Sha.Substring(0, 7)} - {commit.Message}");
 }
 ```
+
+---
+
+## FetchChangesUseCase
+
+Fetches changes from the remote repository without merging.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath, bool isSilent = false)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="isSilent" type="bool" default="false">
+  If true, suppresses notifications
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new FetchChangesUseCase(gitRepo, notifications);
+var result = await useCase.ExecuteAsync("C:\\Projects\\MyApp");
+
+if (result.IsSuccess)
+{
+    Console.WriteLine("Fetch completed successfully");
+}
+```
+
+<Note>
+  Source: `FetchChangesUseCase.cs:21-42`
+</Note>
+
+---
+
+## DiscardChangesUseCase
+
+Discards uncommitted changes in specific files or all files.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectPath, 
+    IEnumerable<string>? files = null
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="files" type="IEnumerable<string>" optional>
+  Specific files to discard changes from. If null or empty, discards all changes.
+</ParamField>
+
+### Example Usage
+
+```csharp
+// Discard changes in specific files
+var useCase = new DiscardChangesUseCase(gitRepo, notifications);
+var files = new[] { "src/Program.cs", "README.md" };
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", files);
+
+// Discard all changes
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", null);
+```
+
+<Warning>
+  This operation is irreversible. Discarded changes cannot be recovered.
+</Warning>
+
+---
+
+## ResetCommitUseCase
+
+Resets (undoes) the last commit with different reset modes.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(
+    string projectPath, 
+    ResetMode mode = ResetMode.Soft
+)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="mode" type="ResetMode" default="Soft">
+  Reset mode determining what happens to changes
+  <Expandable title="ResetMode options">
+    - **Soft**: Keeps changes in staging area
+    - **Mixed**: Keeps changes in working directory (unstaged)
+    - **Hard**: Discards all changes permanently
+  </Expandable>
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new ResetCommitUseCase(gitRepo, notifications);
+
+// Soft reset - keep changes staged
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", ResetMode.Soft);
+
+// Hard reset - discard all changes
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", ResetMode.Hard);
+```
+
+<Warning>
+  **Hard reset is destructive**: Using `ResetMode.Hard` permanently discards all changes from the last commit. Use with caution.
+</Warning>
+
+---
+
+## StashClearUseCase
+
+Clears all stashed changes from the stash list.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<Warning>
+  This operation permanently removes all stashed changes. This cannot be undone.
+</Warning>
+
+---
+
+## StashDropUseCase
+
+Drops (removes) a specific stash entry.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath, int stashIndex = 0)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="stashIndex" type="int" default="0">
+  Index of the stash to drop (0 is the most recent)
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new StashDropUseCase(gitRepo, notifications);
+
+// Drop the most recent stash
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", 0);
+
+// Drop a specific stash by index
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", 2);
+```
+
+---
+
+## DeleteTagUseCase
+
+Deletes a Git tag from the repository.
+
+### Method Signature
+
+```csharp
+public async Task<Result> ExecuteAsync(string projectPath, string tagName)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+<ParamField path="tagName" type="string" required>
+  Name of the tag to delete
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new DeleteTagUseCase(gitRepo, notifications);
+await useCase.ExecuteAsync("C:\\Projects\\MyApp", "v1.0.0-beta");
+```
+
+---
+
+## GetBranchesUseCase
+
+Retrieves all branches in the repository.
+
+### Method Signature
+
+```csharp
+public async Task<IEnumerable<string>> ExecuteAsync(string projectPath)
+```
+
+<ParamField path="projectPath" type="string" required>
+  Path to the project repository
+</ParamField>
+
+### Example Usage
+
+```csharp
+var useCase = new GetBranchesUseCase(gitRepo);
+var branches = await useCase.ExecuteAsync("C:\\Projects\\MyApp");
+
+foreach (var branch in branches)
+{
+    Console.WriteLine(branch);
+}
+```
