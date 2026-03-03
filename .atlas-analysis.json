@@ -1,0 +1,129 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Chapi Assistant",
+  "projectDescription": "A desktop development assistant for .NET projects with project scaffolding, code generation, Git management, and AI-powered features",
+  "theme": "aspen",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#2563EB",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/project-creation",
+              "features/code-generation",
+              "features/git-management",
+              "features/ai-assistant",
+              "features/workspace-management"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/creating-projects",
+              "guides/generating-modules",
+              "guides/git-workflow",
+              "guides/ai-setup",
+              "guides/templates"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/git-authentication",
+              "configuration/ai-providers",
+              "configuration/project-settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Architecture",
+        "groups": [
+          {
+            "group": "Design",
+            "pages": [
+              "architecture/overview",
+              "architecture/clean-architecture",
+              "architecture/layers",
+              "architecture/use-cases"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "architecture/domain-layer",
+              "architecture/application-layer",
+              "architecture/infrastructure-layer",
+              "architecture/presentation-layer"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Use Cases",
+            "pages": [
+              "api/projects",
+              "api/code-generation",
+              "api/git-operations",
+              "api/ai-services"
+            ]
+          },
+          {
+            "group": "Services",
+            "pages": [
+              "api/template-service",
+              "api/module-generator",
+              "api/git-repository",
+              "api/authentication"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Project scaffolding from Git templates",
+    "Clean Architecture module generation",
+    "Full Git workflow integration",
+    "AI-powered coding assistance (Gemini, OpenAI, Claude)",
+    "Multi-project workspace management",
+    "GitHub/GitLab OAuth authentication",
+    "Automatic code rollback system",
+    "Template customization and renaming"
+  ],
+  "publicApiSurface": [
+    "CreateProjectUseCase",
+    "GenerateModuleUseCase",
+    "CommitChangesUseCase",
+    "PushChangesUseCase",
+    "PullChangesUseCase",
+    "GenerateCommitMessageUseCase",
+    "SendChatMessageUseCase",
+    "AddApiControllerUseCase",
+    "AddApiEndpointUseCase",
+    "AddApplicationMethodUseCase",
+    "AddDomainMethodUseCase",
+    "AddInfrastructureMethodUseCase",
+    "LoginGitHubUseCase",
+    "CloneProjectUseCase",
+    "SwitchBranchUseCase",
+    "CreateBranchUseCase",
+    "StashChangesUseCase"
+  ]
+}
